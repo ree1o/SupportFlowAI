@@ -1,8 +1,8 @@
 # Preliminary data model — future releases
 
-M1 creates **only the Alembic version table**. The baseline revision is intentionally
-empty: adding business tables now would begin M2/M3 without approval.
-This document is a design, not a claim that these tables exist.
+M1 creates only the Alembic version table. M2 migration `0002_identity` adds users,
+sessions, organizations and memberships. All remaining tables below are future designs.
+See [identity design](identity.md) for implemented constraints and session selection.
 
 | Release | Tables / purpose |
 | --- | --- |

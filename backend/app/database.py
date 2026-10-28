@@ -3,6 +3,7 @@ from contextlib import contextmanager
 
 from fastapi import Request
 from sqlalchemy import MetaData, create_engine
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import Settings
@@ -23,6 +24,10 @@ class Base(DeclarativeBase):
 class Database:
     def __init__(self, settings: Settings):
         timeout = settings.database_timeout_seconds
+        url = make_url(settings.database_url.get_secret_value())
+        options = url.query.get("options", "")
+        if not isinstance(options, str):
+            raise ValueError("Database options must be a string")
         self.engine = create_engine(
             settings.database_url.get_secret_value(),
             pool_pre_ping=True,
@@ -32,7 +37,7 @@ class Database:
             hide_parameters=True,
             connect_args={
                 "connect_timeout": timeout,
-                "options": f"-c statement_timeout={timeout * 1000}",
+                "options": f"{options} -c statement_timeout={timeout * 1000}".strip(),
             },
         )
         self.session_factory = sessionmaker(bind=self.engine, expire_on_commit=False)

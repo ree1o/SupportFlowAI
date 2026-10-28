@@ -2,9 +2,9 @@
 
 Intelligent Customer Support & Incident Management Platform.
 
-**Current implementation: M1 — Reproducible Application Baseline.** This is not yet a
-working helpdesk. There is no authentication, ticket model, Redis, Celery, or AI code.
-The next milestone requires approval before implementation.
+**Current implementation: M2 — Identity and Tenant Boundaries.** Accounts, sessions,
+organizations and staff membership management extend the verified M1 baseline.
+Tickets begin in M3, which requires separate approval.
 
 ## Documentation
 
@@ -13,19 +13,22 @@ The next milestone requires approval before implementation.
 - [Preliminary data model and ER diagram](docs/data-model.md)
 - [Verification record and limitations](docs/verification.md)
 - [Created-file inventory](docs/files.md)
+- [Identity API, sessions, CSRF, permissions and browser demo](docs/identity.md)
+- [M2 verification results](docs/m2-verification.md)
 
 Owner and Administrator will manage/approve incidents; Agent can view/report candidates.
-Basic authorization and tenant isolation begin in M2. PostgreSQL RLS is deferred to 1.0.
+Basic authorization and tenant isolation are implemented. PostgreSQL RLS is deferred to 1.0.
 
 ## Implemented baseline
 
 - FastAPI application factory and lifecycle management.
 - Validated settings and secret-masked PostgreSQL configuration.
 - Synchronous SQLAlchemy pool and independent sessions with rollback/close cleanup.
-- Alembic baseline revision; no business tables and no automatic `create_all`.
+- Alembic baseline plus four identity tables; no automatic `create_all`.
 - Database-independent liveness and migration-aware readiness.
 - JSON application logs, server-generated request IDs, and safe API errors.
-- Minimal React/TypeScript status page with retry and unavailable states.
+- React/TypeScript login, onboarding, protected workspace and team management, plus `/status`.
+- Argon2id passwords, opaque hashed sessions, Origin/CSRF checks, explicit tenant RBAC.
 - Exact Python dependency pins with hash locks and npm package lock.
 - Local Docker Compose startup ordering and GitHub Actions validation.
 
@@ -84,6 +87,7 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --require-hashes -r backend\requirements-dev.txt
 Set-Location backend
 ..\.venv\Scripts\alembic.exe upgrade head
+$env:SUPPORTFLOW_COOKIE_SECURE = 'false' # Explicit local HTTP only
 ..\.venv\Scripts\uvicorn.exe app.main:create_app --factory --reload --no-access-log
 ```
 
@@ -95,7 +99,7 @@ npm.cmd ci
 npm.cmd run dev
 ```
 
-The root `.env` URL uses `localhost`. Compose overrides it to the internal `db` hostname.
+The root `.env` URL uses `localhost:15432`. Compose uses internal `db:5432`.
 If using an existing PostgreSQL installation instead, create a dedicated development
 database/account and edit `.env` accordingly. Never use an important database for tests.
 Do not run the host API and Compose API on port 8000 simultaneously.
@@ -113,6 +117,10 @@ Do not run the host API and Compose API on port 8000 simultaneously.
 | POSTGRES_USER / PASSWORD / DB | Compose local database initialization |
 | API_PROXY_TARGET | Vite-only server configuration; defaults to `http://127.0.0.1:8000` |
 | TEST_DATABASE_URL | Dedicated integration database ending in `_test` |
+| SUPPORTFLOW_COOKIE_SECURE | `true` by default; Compose explicitly sets `false` for local HTTP |
+| SUPPORTFLOW_ALLOWED_ORIGINS | JSON array of exact trusted origins; local UI origins by default |
+| SUPPORTFLOW_SESSION_TTL_SECONDS | 28800 (8 hours) |
+| SUPPORTFLOW_SESSION_ABSOLUTE_SECONDS | 604800 (7 days); renewal cannot exceed this original limit |
 
 Environment variables override `.env`. URL-encode special characters in URL credentials.
 Compose's interpolated local password should be URL-safe; do not paste unescaped reserved
@@ -148,6 +156,7 @@ From `backend`:
 ..\.venv\Scripts\python.exe -m pip check
 ..\.venv\Scripts\ruff.exe check .
 ..\.venv\Scripts\ruff.exe format --check .
+..\.venv\Scripts\python.exe -m mypy
 ..\.venv\Scripts\pytest.exe
 ```
 
@@ -157,15 +166,14 @@ from the repository root (default local credentials):
 
 ```powershell
 docker compose exec db createdb -U supportflow supportflow_test
-$env:TEST_DATABASE_URL = 'postgresql+psycopg://supportflow:supportflow_dev_only@localhost:5432/supportflow_test'
+$env:TEST_DATABASE_URL = 'postgresql+psycopg://supportflow:supportflow_dev_only@localhost:15432/supportflow_test'
 Set-Location backend
 ..\.venv\Scripts\pytest.exe
 ```
 
 Create the test database once; an already-existing error is harmless only if it is the
-intended disposable database. Tests refuse a database whose name does not end `_test`
-or which contains non-baseline user tables. The migration test downgrades/re-upgrades
-that database. Do not run these tests concurrently against the same database.
+intended disposable database. Tests refuse names not ending `_test` and use separate
+random schemas per test; migration round-trips never touch the development schema.
 
 Frontend, from `frontend`:
 
@@ -174,8 +182,17 @@ npm.cmd ci
 npm.cmd run build
 ```
 
-Build includes strict TypeScript checking. There is no frontend unit-test framework
-for this small status page; CI smoke-checks the frontend and same-origin API proxy.
+Build includes strict TypeScript checking. With the Compose stack running, browser
+tests cover onboarding, login/logout, renewal, tenant switching and membership access:
+
+```powershell
+npx.cmd playwright install chromium
+npm.cmd run test:e2e
+```
+
+Use `$env:PLAYWRIGHT_CHANNEL = 'chrome'` to use an installed Chrome browser instead.
+Desktop and mobile projects create synthetic accounts. Prefer a disposable test stack;
+they intentionally leave those demo accounts for inspection. Never target a production URL.
 
 Docker-only backend unit test alternative, from root:
 
@@ -214,14 +231,14 @@ registry URL should enter a lockfile.
 - **docker not recognized:** install/start Docker Desktop and reopen the terminal.
 - **Docker cannot connect:** check Docker Desktop is running in Linux-container mode.
 - **npm.ps1 blocked:** use `npm.cmd`; no policy change is needed.
-- **Port 5432 already in use:** stop the conflicting disposable service or change the
+- **Port 15432 already in use:** stop the conflicting disposable service or change the
   Compose host port and host `.env` URL together; the internal database remains on 5432.
 - **503 schema_not_ready:** run `alembic upgrade head` or rerun the Compose migration service.
 - **503 database_unavailable:** inspect database startup, hostname/port and credentials.
 - **UI unavailable:** check `docker compose logs frontend`; allow the server to start.
 
-## Next: M2 (requires approval)
+## Next: M3 (requires approval)
 
-Users, organizations, Owner/Administrator/Agent memberships, secure server-side sessions,
-password hashing, CSRF, and tenant-scoped authorization with isolation tests. RLS remains
-scheduled for 1.0. Tickets begin in M3. No M2 functionality has been implemented.
+Contacts, tickets, assignment, priorities/categories, public replies and internal notes,
+an audit timeline, explicit workflow transitions and concurrency-safe updates. M3 has
+not begun; identity and tenant boundaries are the M2 stopping point.

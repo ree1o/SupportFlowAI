@@ -1,4 +1,4 @@
-name: M1 checks
+name: Application checks
 
 on:
   push:
@@ -39,6 +39,7 @@ jobs:
       - run: python -m pip check
       - run: ruff check .
       - run: ruff format --check .
+      - run: python -m mypy
       - run: pytest
       - run: alembic upgrade head
       - run: alembic check
@@ -62,6 +63,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.21.1'
       - run: docker compose config --quiet
       - run: docker compose up --build -d --wait --wait-timeout 180
       - name: Check API and same-origin frontend proxy
@@ -69,6 +73,12 @@ jobs:
           curl --fail --retry 10 --retry-connrefused --retry-delay 2 http://localhost:5173/
           curl --fail http://localhost:8000/api/health/live
           curl --fail http://localhost:5173/api/health/ready
+      - name: Browser authentication and organization flows
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run test:e2e
       - name: Check database outage behavior
         run: |
           docker compose stop db

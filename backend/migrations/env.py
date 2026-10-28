@@ -3,6 +3,7 @@ from sqlalchemy import create_engine, pool
 
 from app.config import Settings
 from app.database import Base
+from app.identity import models  # noqa: F401 -- register metadata for Alembic
 
 target_metadata = Base.metadata
 

@@ -1,6 +1,6 @@
 # Incremental release roadmap
 
-Approved scope, 2026-10-28. Implement **M1 only** until the next explicit approval.
+Approved scope, 2026-10-28. M2 is explicitly authorized; stop after M2 and wait for M3 approval.
 M1 is a baseline inside 0.1; it is not a completed Working Helpdesk release.
 Complexities S/M/L are relative, not delivery-date commitments.
 
@@ -22,7 +22,7 @@ Infrastructure: API, frontend, PostgreSQL only.
 - Done: reproducible startup and checks, limitations reported honestly.
 - Dependency: architecture approval. Risks: Windows networking, dependency compatibility.
 
-### M2: Identity and tenant boundaries (L; NOT authorized yet)
+### M2: Identity and tenant boundaries (L; completed)
 - Backend: users, organizations, fixed roles, secure password/session lifecycle, CSRF,
   tenant-scoped authorization. No advanced RLS yet.
 - Frontend: login/logout, organization selection.

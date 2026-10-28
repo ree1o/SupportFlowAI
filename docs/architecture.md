@@ -1,8 +1,9 @@
-# Architecture — approved direction, M1 implementation boundary
+# Architecture — approved direction, M2 implementation boundary
 
 Status: approved direction with release adjustments, 2026-10-28.
 This document distinguishes intended architecture from implemented functionality.
-Only M1 is implemented. No authentication, tenant data, tickets, queue, or AI exists yet.
+M1 and M2 are implemented. See [identity design](identity.md) for current endpoints,
+permissions, session/CSRF behavior and limitations. Tickets, queues and AI remain future work.
 
 ## Product and scope
 
@@ -36,7 +37,7 @@ Async network I/O may later benefit bounded outgoing delivery batches. Blocking 
 operations use synchronous routes and must not be placed directly on the event loop.
 CPU-heavy embeddings run in workers, not API requests.
 
-## Current M1 deployment
+## Current M2 deployment
 
 ```mermaid
 flowchart LR
@@ -110,7 +111,7 @@ not incident evidence, other customers, or internal notes. All mutations are aud
 
 M1 has no user/domain records: loopback development bindings, validated input/config,
 sanitized errors/logs, non-root application containers, and ignored local secrets.
-M2 must establish authorization and tenant isolation before the first domain data.
+M2 enforces authorization and tenant isolation for identity and organization records.
 Future child references use `(organization_id, parent_id)` foreign keys against
 `(organization_id, id)` unique keys; a UUID alone grants no access.
 RLS is deliberately deferred to 1.0: runtime non-owner role, transaction-local tenant

@@ -8,12 +8,15 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException
 
 from app.config import Settings
 from app.database import Database
-from app.errors import error_response
+from app.errors import AppError, error_response
 from app.health import router
+from app.identity.api import router as identity_router
+from app.identity.security import clear_cookies
 from app.logging import configure_logging
 
 logger = logging.getLogger("supportflow.api")
@@ -41,6 +44,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         redoc_url=None,
         openapi_url="/api/openapi.json",
     )
+    app.state.settings = settings
     migration_config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
     app.state.migration_heads = set(ScriptDirectory.from_config(migration_config).get_heads())
 
@@ -90,5 +94,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def validation_error(request: Request, exc: RequestValidationError):
         return error_response(request, 422, "validation_error", "Request validation failed")
 
+    @app.exception_handler(AppError)
+    async def application_error(request: Request, exc: AppError):
+        response = error_response(request, exc.status, exc.code, exc.message)
+        if exc.status == 401 and exc.code == "unauthenticated":
+            clear_cookies(response, settings)
+        return response
+
+    @app.exception_handler(SQLAlchemyError)
+    async def database_error(request: Request, exc: SQLAlchemyError):
+        logger.error(
+            "database_request_failed",
+            extra={
+                "request_id": request.state.request_id,
+                "error_type": type(exc).__name__,
+            },
+        )
+        return error_response(request, 503, "database_unavailable", "Database is unavailable")
+
     app.include_router(router)
+    app.include_router(identity_router)
     return app

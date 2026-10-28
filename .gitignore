@@ -27,3 +27,6 @@ htmlcov/
 credentials.json
 *.credentials.json
 secrets/
+.mypy_cache/
+test-results/
+playwright-report/

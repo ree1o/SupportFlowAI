@@ -1,5 +1,8 @@
 # M1 verification record
 
+Historical baseline record. Current implementation results are recorded in
+[M2 verification](m2-verification.md); the original M1 observations below are retained.
+
 Verified locally on 2026-10-28. These are observed results, not planned CI results.
 
 ## Environment

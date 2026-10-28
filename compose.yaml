@@ -8,6 +8,8 @@ x-backend: &backend
     SUPPORTFLOW_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-supportflow}:${POSTGRES_PASSWORD:-supportflow_dev_only}@db:5432/${POSTGRES_DB:-supportflow}
     SUPPORTFLOW_ENVIRONMENT: ${SUPPORTFLOW_ENVIRONMENT:-development}
     SUPPORTFLOW_LOG_LEVEL: ${SUPPORTFLOW_LOG_LEVEL:-INFO}
+    SUPPORTFLOW_COOKIE_SECURE: ${SUPPORTFLOW_COOKIE_SECURE:-false}
+    SUPPORTFLOW_ALLOWED_ORIGINS: ${SUPPORTFLOW_ALLOWED_ORIGINS:-["http://localhost:5173","http://127.0.0.1:5173"]}
 
 services:
   db:

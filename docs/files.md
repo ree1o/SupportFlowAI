@@ -1,7 +1,10 @@
-# M1 created-file inventory
+# Source inventory — M1 baseline and M2 identity
 
 The workspace was empty. All source/configuration/documentation files below were created
 for M1; no pre-existing application files were replaced.
+
+M2 adds identity and tenant boundaries. The M1 list below is historical; the M2
+additions and main modifications are listed separately at the end.
 
 ## Root and CI
 
@@ -61,3 +64,28 @@ for M1; no pre-existing application files were replaced.
 Generated local artifacts (`.venv`, `.local`, `node_modules`, `dist`, caches) are ignored
 and excluded from this source inventory. No credentials or model downloads are required
 for the baseline beyond the documented local database configuration.
+
+## M2 additions
+
+- `backend/app/identity/__init__.py`
+- `backend/app/identity/models.py` — users, organizations, memberships and session records.
+- `backend/app/identity/schemas.py` — validated inputs and public response models.
+- `backend/app/identity/security.py` — Argon2id, opaque tokens, cookie and CSRF primitives.
+- `backend/app/identity/service.py` — transaction, session and tenant permission rules.
+- `backend/app/identity/api.py` — authentication and scoped organization routes.
+- `backend/migrations/versions/0002_identity.py` — additive M1-to-M2 schema migration.
+- `backend/tests/test_identity.py` — PostgreSQL persistence, access and concurrency tests.
+- `backend/tests/test_security.py` — cookie/configuration and security primitive tests.
+- `frontend/src/api.ts` — same-origin requests and session-expiry handling.
+- `frontend/src/Health.tsx` — preserved M1 health page at `/status`.
+- `frontend/playwright.config.ts` — desktop and mobile browser projects.
+- `frontend/e2e/identity.spec.ts` — full authentication and organization flows.
+- `docs/identity.md` — API, security, permissions, limits and manual demonstration.
+- `docs/m2-verification.md` — observed M2 verification results.
+
+Main updated files: backend application/configuration/database/error handling, Alembic
+model registration, PostgreSQL test fixtures, dependency inputs and hash locks,
+frontend entry/layout/styles/package lock, Compose local cookie configuration,
+`.env.example` (host port 15432), CI (mypy and browser checks), ignore rules, README,
+architecture/data-model/roadmap documents and the milestone boundary in AGENTS.md.
+Real `.env`, local database URLs, dependency folders and screenshots remain ignored.
