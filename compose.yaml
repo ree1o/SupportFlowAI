@@ -1,0 +1,63 @@
+name: supportflow
+
+x-backend: &backend
+  build:
+    context: ./backend
+    target: runtime
+  environment:
+    SUPPORTFLOW_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-supportflow}:${POSTGRES_PASSWORD:-supportflow_dev_only}@db:5432/${POSTGRES_DB:-supportflow}
+    SUPPORTFLOW_ENVIRONMENT: ${SUPPORTFLOW_ENVIRONMENT:-development}
+    SUPPORTFLOW_LOG_LEVEL: ${SUPPORTFLOW_LOG_LEVEL:-INFO}
+
+services:
+  db:
+    image: postgres:16.10-bookworm
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-supportflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-supportflow_dev_only}
+      POSTGRES_DB: ${POSTGRES_DB:-supportflow}
+    ports:
+      - "127.0.0.1:15432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  migrate:
+    <<: *backend
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: *backend
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/ready', timeout=8)"]
+      interval: 10s
+      timeout: 9s
+      retries: 5
+      start_period: 10s
+
+  frontend:
+    build: ./frontend
+    environment:
+      API_PROXY_TARGET: http://api:8000
+    ports:
+      - "127.0.0.1:5173:5173"
+    depends_on:
+      api:
+        condition: service_started
+
+volumes:
+  postgres_data:
