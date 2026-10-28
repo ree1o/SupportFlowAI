@@ -1,9 +1,10 @@
-# Architecture — approved direction, M2 implementation boundary
+# Architecture — approved direction, M3 implementation boundary
 
 Status: approved direction with release adjustments, 2026-10-28.
 This document distinguishes intended architecture from implemented functionality.
-M1 and M2 are implemented. See [identity design](identity.md) for current endpoints,
-permissions, session/CSRF behavior and limitations. Tickets, queues and AI remain future work.
+M1–M3 are implemented. See [identity design](identity.md) and [ticket design](tickets.md)
+for current endpoints, permissions, security, transaction rules and limitations.
+Customer access, background jobs, incidents and AI remain future work.
 
 ## Product and scope
 
@@ -22,7 +23,7 @@ English demo data, one region, modest volumes, and one developer are initial ass
 | Persistence | Synchronous SQLAlchemy and Psycopg; simpler transaction handling shared by API and future Celery workers. |
 | Schema changes | Alembic is the only schema lifecycle mechanism. No startup `create_all`. |
 | Transactions | Services own explicit transactions; request dependencies close/roll back sessions but never silently commit. |
-| Concurrency | Future mutable aggregates have a version; stale writes return 409. Short row locks protect multi-row invariants. |
+| Concurrency | Tickets have a required expected version; stale writes return 409. Short row locks make version checks and writes atomic. |
 | Authentication (M2) | Opaque server-side sessions, hashed credentials, secure cookies, CSRF protection. No mandatory JWT. |
 | Isolation (M2 onward) | Explicit organization-scoped queries, authorization tests, and composite tenant foreign keys. |
 | RLS | Defense in depth in release 1.0. Not a substitute for application authorization. Separate migration/runtime privileges then. |
@@ -37,7 +38,7 @@ Async network I/O may later benefit bounded outgoing delivery batches. Blocking 
 operations use synchronous routes and must not be placed directly on the event loop.
 CPU-heavy embeddings run in workers, not API requests.
 
-## Current M2 deployment
+## Current M3 deployment
 
 ```mermaid
 flowchart LR
@@ -114,6 +115,12 @@ sanitized errors/logs, non-root application containers, and ignored local secret
 M2 enforces authorization and tenant isolation for identity and organization records.
 Future child references use `(organization_id, parent_id)` foreign keys against
 `(organization_id, id)` unique keys; a UUID alone grants no access.
+M3 applies those constraints to requester/category/assignee/creator, message/ticket/author,
+and audit/ticket/actor/message relationships. Each service verifies active membership.
+Short shared organization locks keep ticket writes concurrent while serializing them
+against M2 membership changes; ticket row locks then guard version checks and mutations.
+Ticket, message, lifecycle timestamps and audit commit together. Database triggers reject
+message/audit updates and deletes. See [ticket design](tickets.md) for the implemented ER diagram.
 RLS is deliberately deferred to 1.0: runtime non-owner role, transaction-local tenant
 context, fail-closed missing context, worker coverage, and connection reuse tests.
 Do not admit real customer data before release hardening and a deployment review.

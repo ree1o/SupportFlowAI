@@ -1,8 +1,10 @@
-# Preliminary data model — future releases
+# Data model — implemented core and future releases
 
 M1 creates only the Alembic version table. M2 migration `0002_identity` adds users,
-sessions, organizations and memberships. All remaining tables below are future designs.
-See [identity design](identity.md) for implemented constraints and session selection.
+sessions, organizations and memberships. M3 migration `0003_tickets` adds contacts,
+categories, tickets, messages and audit_events. Later-release tables below remain designs.
+See [identity design](identity.md) and [ticket design](tickets.md) for implemented
+constraints, transactions, indexes and the current ER diagram.
 
 | Release | Tables / purpose |
 | --- | --- |

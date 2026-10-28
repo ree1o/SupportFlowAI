@@ -1,12 +1,4 @@
-import {
-  createContext,
-  StrictMode,
-  useContext,
-  useEffect,
-  useState,
-  type FormEvent,
-  type ReactNode,
-} from "react";
+import { StrictMode, useEffect, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
 import {
   BrowserRouter,
@@ -26,81 +18,10 @@ import {
   type Role,
 } from "./api";
 import { Health } from "./Health";
+import { AuthProvider, useAuth, ErrorText, message } from "./auth";
+import { Sidebar } from "./Sidebar";
+import { SupportApp } from "./support/SupportApp";
 import "./styles.css";
-
-type AuthState = {
-  current: CurrentUser | null;
-  loading: boolean;
-  setCurrent: (value: CurrentUser | null) => void;
-  reload: () => Promise<void>;
-};
-const Auth = createContext<AuthState | null>(null);
-function useAuth() {
-  const auth = useContext(Auth);
-  if (!auth) throw new Error("Missing account context");
-  return auth;
-}
-const message = (error: unknown) =>
-  error instanceof Error
-    ? error.message
-    : "Something went wrong. Please retry.";
-
-function AuthProvider({ children }: { children: ReactNode }) {
-  const [current, setCurrent] = useState<CurrentUser | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [failure, setFailure] = useState("");
-  async function reload() {
-    setCurrent(await api<CurrentUser>("/auth/me"));
-  }
-  useEffect(() => {
-    let active = true;
-    const expired = () => setCurrent(null);
-    window.addEventListener("session-expired", expired);
-    void api<CurrentUser>("/auth/me")
-      .then((value) => {
-        if (active) setCurrent(value);
-      })
-      .catch((error) => {
-        if (active && !(error instanceof ApiError && error.status === 401))
-          setFailure(message(error));
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-      window.removeEventListener("session-expired", expired);
-    };
-  }, []);
-  if (failure)
-    return (
-      <main>
-        <header>SupportFlow AI</header>
-        <div className="card">
-          <ErrorText text={failure} />
-          <button onClick={() => window.location.reload()}>
-            Retry connection
-          </button>
-          <p>
-            <Link to="/status">System status</Link>
-          </p>
-        </div>
-      </main>
-    );
-  return (
-    <Auth.Provider value={{ current, loading, setCurrent, reload }}>
-      {children}
-    </Auth.Provider>
-  );
-}
-
-function ErrorText({ text }: { text: string }) {
-  return text ? (
-    <p className="error" role="alert">
-      {text}
-    </p>
-  ) : null;
-}
 
 function AccountForm({ register = false }: { register?: boolean }) {
   const { current, loading, setCurrent } = useAuth();
@@ -108,7 +29,7 @@ function AccountForm({ register = false }: { register?: boolean }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   if (loading) return <main aria-busy="true">Loading your workspace…</main>;
-  if (current) return <Navigate to="/app" replace />;
+  if (current) return <Navigate to="/app/tickets" replace />;
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -135,7 +56,7 @@ function AccountForm({ register = false }: { register?: boolean }) {
           payload,
         ),
       );
-      navigate("/app", { replace: true });
+      navigate("/app/tickets", { replace: true });
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 422
@@ -263,7 +184,9 @@ function Workspace() {
   const { current, setCurrent, reload } = useAuth();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(() =>
+    new URLSearchParams(window.location.search).has("new"),
+  );
   const [revision, setRevision] = useState(0);
   const [members, setMembers] = useState<Member[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
@@ -362,61 +285,11 @@ function Workspace() {
     selected?.role === "owner" || selected?.role === "administrator";
   return (
     <div className="workspace-shell">
-      <aside className="sidebar">
-        <Link className="wordmark" to="/app">
-          <span className="brand-mark" aria-hidden="true">
-            S
-          </span>
-          SupportFlow AI
-        </Link>
-        <p className="eyebrow">Workspace</p>
-        <label>
-          Select organization
-          <select
-            aria-label="Select organization"
-            disabled={busy}
-            value={selected?.id ?? ""}
-            onChange={(event) => void switchOrg(event.target.value)}
-          >
-            <option value="" disabled>
-              Select a workspace
-            </option>
-            {current.organizations.map((org) => (
-              <option key={org.id} value={org.id}>
-                {org.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          className="secondary"
-          onClick={() => setCreating((value) => !value)}
-        >
-          + New workspace
-        </button>
-        <nav>
-          <Link className="active" to="/app">
-            Organization & team
-          </Link>
-          <Link to="/status">System status ↗</Link>
-        </nav>
-        <div className="identity">
-          <strong>{current.user.full_name}</strong>
-          <span>{current.user.email}</span>
-          <button
-            className="text-button"
-            disabled={busy}
-            onClick={() =>
-              void act(async () => {
-                await api("/auth/logout", "POST");
-                setCurrent(null);
-              })
-            }
-          >
-            Sign out
-          </button>
-        </div>
-      </aside>
+      <Sidebar
+        busy={busy}
+        onSelect={switchOrg}
+        onCreate={() => setCreating((value) => !value)}
+      />
       <main className="workspace-main">
         <div className="page-heading">
           <div>
@@ -664,8 +537,12 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/register" element={<AccountForm register />} />
                 <Route element={<Protected />}>
                   <Route path="/app" element={<Workspace />} />
+                  <Route path="/app/*" element={<SupportApp />} />
                 </Route>
-                <Route path="*" element={<Navigate to="/app" replace />} />
+                <Route
+                  path="*"
+                  element={<Navigate to="/app/tickets" replace />}
+                />
               </Routes>
             </AuthProvider>
           }

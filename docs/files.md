@@ -89,3 +89,23 @@ frontend entry/layout/styles/package lock, Compose local cookie configuration,
 `.env.example` (host port 15432), CI (mypy and browser checks), ignore rules, README,
 architecture/data-model/roadmap documents and the milestone boundary in AGENTS.md.
 Real `.env`, local database URLs, dependency folders and screenshots remain ignored.
+
+## M3 additions
+
+- `backend/app/tickets/{models,schemas,service,api}.py` — helpdesk domain, validation,
+  scoped queries, explicit permissions, transaction/workflow/version rules and REST routes.
+- `backend/migrations/versions/0003_tickets_add_ticket_management_and_history.py` —
+  five tables, composite tenant FKs, constraints/indexes and append-only history triggers.
+- `backend/tests/test_tickets.py` — real PostgreSQL API, tenant, rollback, workflow,
+  concurrency, authorization-race and migration tests.
+- `frontend/src/auth.tsx` — existing identity context extracted for shared navigation.
+- `frontend/src/Sidebar.tsx` — shared staff navigation and organization switching.
+- `frontend/src/support/{SupportApp,Tickets,Contacts,Categories}.tsx` — staff routes/screens.
+- `frontend/src/support/{types,remote}.ts` — typed responses and scoped read lifecycle.
+- `frontend/e2e/tickets.spec.ts` — desktop/mobile staff flow and draft-preserving conflicts.
+- `docs/tickets.md`, `docs/m3-verification.md` — design, API, manual demo and evidence.
+
+Updated: API composition/error details, identity organization-lock helper, Alembic model
+registration, PostgreSQL migration expectations, frontend entry/API/styles, preserved M2
+browser navigation expectations, CI browser-step description, README/design/roadmap and
+the AGENTS.md milestone boundary. No dependencies or Compose services were added.

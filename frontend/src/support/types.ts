@@ -1,0 +1,64 @@
+export type Status = "open" | "pending" | "resolved" | "closed";
+export type Priority = "low" | "normal" | "high" | "urgent";
+export type Contact = {
+  id: string;
+  name: string;
+  email: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+export type Category = { id: string; name: string; is_active: boolean };
+export type Ticket = {
+  id: string;
+  title: string;
+  status: Status;
+  priority: Priority;
+  version: number;
+  requester_contact_id: string;
+  requester_name: string;
+  requester_email: string | null;
+  category_id: string | null;
+  category_name: string | null;
+  category_active: boolean | null;
+  assigned_membership_id: string | null;
+  assignee_name: string | null;
+  assignee_active: boolean | null;
+  created_at: string;
+  updated_at: string;
+  first_response_at: string | null;
+  first_resolved_at: string | null;
+  resolved_at: string | null;
+  closed_at: string | null;
+  allowed_transitions: Status[];
+  can_update: boolean;
+  can_reply: boolean;
+  can_note: boolean;
+  can_assign_others: boolean;
+};
+export type Page<T> = {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+export type Message = {
+  id: string;
+  author_name: string;
+  body: string;
+  visibility: "public" | "internal";
+  ticket_version: number;
+  created_at: string;
+};
+export type Activity = {
+  id: string;
+  actor_name: string;
+  action: string;
+  changes: Record<string, unknown>;
+  ticket_version: number;
+  sequence: number;
+  created_at: string;
+};
+export type Timeline<T> = { items: T[]; next_after_version: number | null };
+export const statuses: Status[] = ["open", "pending", "resolved", "closed"];
+export const priorities: Priority[] = ["low", "normal", "high", "urgent"];

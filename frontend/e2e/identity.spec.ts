@@ -23,7 +23,8 @@ async function register(page: Page, prefix: string) {
   await page
     .getByRole("button", { name: "Create account & workspace" })
     .click();
-  await expect(page).toHaveURL(/\/app$/);
+  await expect(page).toHaveURL(/\/app\/tickets$/);
+  await page.getByRole("link", { name: "Organization & team" }).click();
   await expect(
     page.getByRole("heading", { name: account.name, exact: true }),
   ).toBeVisible();
@@ -62,8 +63,15 @@ test("onboarding, protected routes, organization switching, renewal, and logout"
     page.getByRole("heading", { name: "Renamed workspace", exact: true }),
   ).toBeVisible();
   await expect(page.getByLabel(`Role for ${account.email}`)).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.screenshot({ path: test.info().outputPath("workspace.png"), fullPage: true });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: test.info().outputPath("workspace.png"),
+    fullPage: true,
+  });
   await page.getByLabel(`Role for ${account.email}`).selectOption("agent");
   await expect(page.getByRole("alert")).toContainText("retain an active owner");
   const before = (await page.context().cookies()).find(
@@ -90,7 +98,7 @@ test("onboarding, protected routes, organization switching, renewal, and logout"
   );
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(/\/app$/);
+  await expect(page).toHaveURL(/\/app\/tickets$/);
   await page.goto("/status");
   await expect(page.getByText("available", { exact: true })).toHaveCount(2);
 });

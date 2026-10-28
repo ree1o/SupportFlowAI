@@ -31,7 +31,10 @@ class AuthContext:
 
 
 @contextmanager
-def transaction(db: Session) -> Iterator[None]:
+def transaction(
+    db: Session,
+    conflict_message: str = "An account, slug, or membership already exists",
+) -> Iterator[None]:
     # Authentication reads may already have opened a transaction. This service owns
     # its commit; dependency cleanup is never responsible for committing writes.
     try:
@@ -39,7 +42,7 @@ def transaction(db: Session) -> Iterator[None]:
         db.commit()
     except IntegrityError as exc:
         db.rollback()
-        raise AppError(409, "conflict", "An account, slug, or membership already exists") from exc
+        raise AppError(409, "conflict", conflict_message) from exc
     except Exception:
         db.rollback()
         raise
@@ -214,6 +217,7 @@ def organization_context(
     organization_id: UUID,
     *,
     write: bool = False,
+    shared: bool = False,
 ) -> tuple[Organization, Membership]:
     query = (
         select(Organization)
@@ -229,6 +233,10 @@ def organization_context(
     )
     if write:
         query = query.with_for_update(of=Organization)
+    elif shared:
+        # Ticket transactions may proceed concurrently, but membership mutations
+        # (which take FOR UPDATE) must wait until current authorization is used.
+        query = query.with_for_update(read=True, of=Organization)
     organization = db.scalar(query)
     # Refresh after acquiring the organization lock: another manager may have just
     # disabled/demoted the actor while this transaction waited for the lock.

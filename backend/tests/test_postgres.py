@@ -22,13 +22,18 @@ def test_migration_upgrade_downgrade_and_readiness(postgres):
         command.upgrade(alembic, "head")
         assert client.get("/api/health/ready").status_code == 200
     with database.engine.connect() as connection:
-        assert MigrationContext.configure(connection).get_current_heads() == ("0002_identity",)
+        assert MigrationContext.configure(connection).get_current_heads() == ("0003_tickets",)
     assert set(inspect(database.engine).get_table_names()) == {
         "alembic_version",
         "users",
         "organizations",
         "memberships",
         "sessions",
+        "contacts",
+        "categories",
+        "tickets",
+        "messages",
+        "audit_events",
     }
     command.check(alembic)
 

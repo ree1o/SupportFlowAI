@@ -26,6 +26,7 @@ export class ApiError extends Error {
     public status: number,
     public code: string,
     message: string,
+    public details?: { current_version?: number },
   ) {
     super(message);
   }
@@ -68,6 +69,7 @@ export async function api<T>(
       response.status,
       payload.error?.code ?? "request_failed",
       payload.error?.message ?? "Request failed. Please retry.",
+      payload.error?.details,
     );
   }
   if (response.status === 204) return undefined as T;

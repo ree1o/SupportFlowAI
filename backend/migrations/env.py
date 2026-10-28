@@ -4,6 +4,7 @@ from sqlalchemy import create_engine, pool
 from app.config import Settings
 from app.database import Base
 from app.identity import models  # noqa: F401 -- register metadata for Alembic
+from app.tickets import models as ticket_models  # noqa: F401 -- register M3 metadata
 
 target_metadata = Base.metadata
 

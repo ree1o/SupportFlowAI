@@ -1,7 +1,7 @@
 # Incremental release roadmap
 
-Approved scope, 2026-10-28. M2 is explicitly authorized; stop after M2 and wait for M3 approval.
-M1 is a baseline inside 0.1; it is not a completed Working Helpdesk release.
+Approved scope, 2026-10-28. M1–M3 are implemented; stop after M3 and wait for M4 approval.
+Release 0.1 now has a demonstrable staff helpdesk; no public deployment is implied.
 Complexities S/M/L are relative, not delivery-date commitments.
 
 ## Release 0.1 — Working Helpdesk (M1–M3)
@@ -31,19 +31,23 @@ Infrastructure: API, frontend, PostgreSQL only.
 - Done: separate organizations cannot access each other's resources.
 - Depends on M1. Risks: credential/session handling and permission scoping.
 
-### M3: Ticket workflow (L)
+### M3: Ticket workflow (L; completed)
 - Backend: contacts, tickets, assignment, priority/category, workflow, messages, audit, version checks.
 - Frontend: queue/filter/detail, clearly distinct public reply/internal-note actions.
 - Database: tenant composite FKs, ticket/message/audit tables and measured indexes.
 - Tests: invalid transitions, internal visibility, rollback, competing assignment/status writes.
 - Done: usable staff helpdesk; explicit conflicts and no tenant leaks.
 - Depends on M2. Risks: scattered business rules and lost updates.
+- Evidence: [ticket design](tickets.md), [M3 verification](m3-verification.md).
 
 ## Release 0.2 — Reliable Backend (L)
 
 Independent demo: customer submits and reads a reply; repeated webhook creates one
 ticket; pause workers/broker and observe recovery; demonstrate SLA deadline notification.
 Add Redis/Celery/one Beat scheduler only when durable jobs are implemented.
+The capabilities below are release goals, not automatically authorized milestones.
+M4 is next for customer portal/account access; its delivery dependencies and final
+scope must be reviewed before development. M3 creates no future-release tables.
 
 1. Durable work: outbox, operation IDs, retries, claims, recovery, terminal failures.
 2. In-app notifications and SMTP adapter/local Mailpit for account flows.

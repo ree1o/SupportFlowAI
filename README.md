@@ -2,9 +2,9 @@
 
 Intelligent Customer Support & Incident Management Platform.
 
-**Current implementation: M2 — Identity and Tenant Boundaries.** Accounts, sessions,
-organizations and staff membership management extend the verified M1 baseline.
-Tickets begin in M3, which requires separate approval.
+**Current implementation: M3 — Ticket Management, Conversations, and Audit History.**
+A working staff helpdesk extends the verified identity and application baseline.
+M4 requires separate approval; no customer portal or email delivery is enabled.
 
 ## Documentation
 
@@ -15,6 +15,8 @@ Tickets begin in M3, which requires separate approval.
 - [Created-file inventory](docs/files.md)
 - [Identity API, sessions, CSRF, permissions and browser demo](docs/identity.md)
 - [M2 verification results](docs/m2-verification.md)
+- [Ticket API, workflow, permissions, tenant constraints and concurrency](docs/tickets.md)
+- [M3 verification results](docs/m3-verification.md)
 
 Owner and Administrator will manage/approve incidents; Agent can view/report candidates.
 Basic authorization and tenant isolation are implemented. PostgreSQL RLS is deferred to 1.0.
@@ -24,11 +26,14 @@ Basic authorization and tenant isolation are implemented. PostgreSQL RLS is defe
 - FastAPI application factory and lifecycle management.
 - Validated settings and secret-masked PostgreSQL configuration.
 - Synchronous SQLAlchemy pool and independent sessions with rollback/close cleanup.
-- Alembic baseline plus four identity tables; no automatic `create_all`.
+- Additive Alembic migrations for four identity and five helpdesk tables; no automatic `create_all`.
 - Database-independent liveness and migration-aware readiness.
 - JSON application logs, server-generated request IDs, and safe API errors.
 - React/TypeScript login, onboarding, protected workspace and team management, plus `/status`.
 - Argon2id passwords, opaque hashed sessions, Origin/CSRF checks, explicit tenant RBAC.
+- Organization-scoped contacts, categories, ticket queues, assignment and lifecycle rules.
+- Separate public replies/internal notes, append-only audit history, atomic version conflicts.
+- Responsive staff queue, intake/detail, contact management and category settings.
 - Exact Python dependency pins with hash locks and npm package lock.
 - Local Docker Compose startup ordering and GitHub Actions validation.
 
@@ -183,7 +188,8 @@ npm.cmd run build
 ```
 
 Build includes strict TypeScript checking. With the Compose stack running, browser
-tests cover onboarding, login/logout, renewal, tenant switching and membership access:
+tests cover onboarding, login/logout, renewal, tenant switching, membership access,
+ticket intake/assignment/workflow, public replies, internal notes, activity and two-tab conflicts:
 
 ```powershell
 npx.cmd playwright install chromium
@@ -237,8 +243,23 @@ registry URL should enter a lockfile.
 - **503 database_unavailable:** inspect database startup, hostname/port and credentials.
 - **UI unavailable:** check `docker compose logs frontend`; allow the server to start.
 
-## Next: M3 (requires approval)
+## Try the staff helpdesk
 
-Contacts, tickets, assignment, priorities/categories, public replies and internal notes,
-an audit timeline, explicit workflow transitions and concurrency-safe updates. M3 has
-not begun; identity and tenant boundaries are the M2 stopping point.
+1. Open `http://localhost:5173/register` and create a synthetic account/workspace, or sign in.
+2. Open **Contacts**, create a customer contact, then create a category under **Categories**.
+3. Open **Tickets → New ticket**, choose the requester, enter the issue and create it.
+4. Assign the ticket, change priority/category, post a **Public reply**, then an **Internal note**.
+5. Inspect both the conversation and activity. Resolve, close, and reopen as a manager.
+6. Open the same ticket in two tabs. Change priority in the first, then post a draft in
+   the second: expect 409, reload latest, review, and retry with the preserved draft.
+7. Switch to a second workspace: the queue and contact directory are isolated.
+
+Public replies are stored conversation records, not delivered messages. No customer
+access exists in M3. Full permissions, transitions, API examples and limitations are
+in [the ticket design](docs/tickets.md).
+
+## Next: M4 (requires approval)
+
+Customer portal and customer account/access flows are the next separately scoped
+milestone. Customer identity must be distinct from staff membership, with access to
+authorized public conversations only. No M4 implementation is included here.

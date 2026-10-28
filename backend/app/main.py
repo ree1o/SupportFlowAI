@@ -18,6 +18,7 @@ from app.health import router
 from app.identity.api import router as identity_router
 from app.identity.security import clear_cookies
 from app.logging import configure_logging
+from app.tickets.api import router as tickets_router
 
 logger = logging.getLogger("supportflow.api")
 
@@ -96,7 +97,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.exception_handler(AppError)
     async def application_error(request: Request, exc: AppError):
-        response = error_response(request, exc.status, exc.code, exc.message)
+        response = error_response(request, exc.status, exc.code, exc.message, exc.details)
         if exc.status == 401 and exc.code == "unauthenticated":
             clear_cookies(response, settings)
         return response
@@ -114,4 +115,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(router)
     app.include_router(identity_router)
+    app.include_router(tickets_router)
     return app

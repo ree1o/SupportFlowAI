@@ -1,8 +1,9 @@
 # M2 — Identity and tenant boundaries
 
 M2 adds global accounts, server-side sessions, organizations and staff memberships.
-The database has four business tables. RLS, email verification/invitations, password
-recovery, customer access, tickets, queues and AI are later work.
+Identity owns four business tables. [M3](tickets.md) adds five helpdesk tables and
+staff ticket workflows. RLS, email verification/invitations, password recovery,
+customer access and AI remain later work.
 
 ## API contract
 
@@ -120,7 +121,8 @@ database reset. Application authorization is in place; advanced RLS remains rele
 ## Manual browser demonstration
 
 1. Start the updated Compose stack and open `http://localhost:5173/register`.
-2. Register an account and organization. The owner workspace opens automatically.
+2. Register an account and organization. The ticket queue opens automatically;
+   choose **Organization & team** for the management screens below.
 3. Create another workspace; switch between them in the selector.
 4. In a private browser window, register a second account with its own organization.
 5. In the first window, add the second account's email as Agent. Refresh the second
