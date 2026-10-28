@@ -15,6 +15,21 @@ scope and read any applicable nested instructions before editing.
   requirement. Basic authorization and tenant isolation begin with identity/domain
   data; advanced PostgreSQL RLS belongs to the hardening release.
 
+## Git naming and commit conventions
+
+- Never mention Codex, ChatGPT, OpenAI, GPT, or any AI assistant or model in commit
+  messages (subject or body), branch names, pull request titles, or release notes.
+- Describe the actual technical changes, not the tools used to implement them.
+- Write concise, professional, descriptive Conventional Commit messages using only
+  `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, or `ci`. Use `type: description`
+  or `type(scope): description` with a relevant optional scope.
+- For Git workflow configuration, use technical wording such as
+  `chore: establish persistent Git workflow`.
+- Never add AI-generated attribution, assistant/model bylines, or co-author trailers
+  (including `Co-authored-by`) to commits.
+- Apply these conventions to new work only. Do not rename, amend, or rewrite existing
+  commits or other history to make earlier work conform.
+
 ## Standing authorization: verify, commit, and push
 
 After completing each explicitly requested coding task or approved milestone, run
@@ -37,9 +52,9 @@ branch; do not ask for that authorization again. Respect platform access control
 5. Stage only explicit task-owned paths. Never use a blanket add that might include
    unrelated changes. Review `git diff --cached --check`, `git diff --cached --stat`,
    and the actual staged diff; scan staged contents and paths for secrets/artifacts.
-6. Only when relevant verification and review pass, create a descriptive Git commit
-   explaining the completed change. Do not create empty commits. Never bypass hooks
-   or checks to make a commit succeed.
+6. Only when relevant verification and review pass, create a descriptive Conventional
+   Commit following the naming and attribution rules above. Do not create empty
+   commits. Never bypass hooks or checks to make a commit succeed.
 7. Review the outgoing commit range so unrelated pre-existing commits are not silently
    published. Push the current branch to the existing `origin` with a normal push,
    for example `git push origin HEAD:refs/heads/<current-branch>`. Use the actual branch
