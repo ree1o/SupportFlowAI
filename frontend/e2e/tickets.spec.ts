@@ -54,6 +54,32 @@ async function ticket(page: Page, title: string) {
   ).toBeVisible();
 }
 
+async function applyFilters(
+  page: Page,
+  organizationId: string,
+  filters: Record<string, string | null>,
+  expectedTotal: number,
+) {
+  // The old queue may already contain the expected number of rows. Wait for the
+  // submitted query, so the next edit cannot race the URL-keyed form remount.
+  const responsePromise = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      response.request().method() === "GET" &&
+      url.pathname === `/api/organizations/${organizationId}/tickets` &&
+      Object.entries(filters).every(
+        ([key, value]) => url.searchParams.get(key) === value,
+      )
+    );
+  });
+  await page
+    .getByRole("button", { name: "Apply filters", exact: true })
+    .click();
+  const response = await responsePromise;
+  expect(response.status()).toBe(200);
+  expect((await response.json()).total).toBe(expectedTotal);
+}
+
 test("staff intake, assignment, distinct conversations, audit, filtering, and tenant switching", async ({
   page,
 }) => {
@@ -134,16 +160,22 @@ test("staff intake, assignment, distinct conversations, audit, filtering, and te
   await page
     .getByRole("combobox", { name: "Priority", exact: true })
     .selectOption("urgent");
-  await page
-    .getByRole("button", { name: "Apply filters", exact: true })
-    .click();
+  await applyFilters(
+    page,
+    org,
+    { q: "checkout", priority: "urgent", status: null },
+    1,
+  );
   await expect(page.locator(".ticket-row")).toHaveCount(1);
   await page
     .getByRole("combobox", { name: "Status", exact: true })
     .selectOption("closed");
-  await page
-    .getByRole("button", { name: "Apply filters", exact: true })
-    .click();
+  await applyFilters(
+    page,
+    org,
+    { q: "checkout", priority: "urgent", status: "closed" },
+    0,
+  );
   await expect(page.getByText("No tickets here yet")).toBeVisible();
   await page.getByRole("button", { name: "+ New workspace" }).click();
   await page.getByLabel("Name", { exact: true }).fill("Isolated workspace");
