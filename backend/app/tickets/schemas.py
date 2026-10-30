@@ -164,7 +164,7 @@ class TicketRecord(BaseModel):
     id: UUID
     organization_id: UUID
     requester_contact_id: UUID
-    created_by_membership_id: UUID
+    created_by_membership_id: UUID | None
     title: str
     status: Status
     priority: Priority
@@ -212,7 +212,8 @@ class PublicMessage(BaseModel):
 
 
 class StaffMessage(PublicMessage):
-    author_membership_id: UUID
+    author_membership_id: UUID | None
+    author_customer_access_id: UUID | None = None
     visibility: Visibility
     ticket_version: int
 
@@ -229,7 +230,8 @@ class PublicConversation(BaseModel):
 
 class AuditView(BaseModel):
     id: UUID
-    actor_membership_id: UUID
+    actor_membership_id: UUID | None
+    actor_customer_access_id: UUID | None = None
     actor_name: str
     action: str
     target_type: Literal["ticket", "message"]

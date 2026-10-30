@@ -1,122 +1,91 @@
 # Incremental release roadmap
 
-Approved scope, 2026-10-28. M1–M3 are implemented; stop after M3 and wait for M4 approval.
-Release 0.1 now has a demonstrable staff helpdesk; no public deployment is implied.
-Complexities S/M/L are relative, not delivery-date commitments.
+Approved scope, 2026-10-30. M1-M4 are complete; M5 requires separate approval.
+Each release has a self-contained demonstration. Completion never authorizes the next
+milestone. Complexity estimates are relative, not delivery-date commitments.
 
-## Release 0.1 — Working Helpdesk (M1–M3)
+## Release 0.1 - Working Helpdesk (M1-M3)
 
-Independent demo: staff from two organizations handle separate ticket queues, assign,
-reply, add internal notes, and receive explicit stale-update conflicts.
-Agent-entered customer contacts suffice here; customer self-service follows in 0.2.
-Infrastructure: API, frontend, PostgreSQL only.
+Independent demo: staff in separate organizations manage queues, assign and reply to
+tickets, add private notes, and see stale-update conflicts. Infrastructure is API,
+frontend, and PostgreSQL.
 
-### M1: Reproducible Application Baseline (S–M; authorized)
-- Backend: FastAPI factory/lifespan, settings, sync SQLAlchemy sessions, health/readiness,
-  structured logs and safe error contract.
-- Frontend: React/TypeScript availability page, same-origin proxy, retry/error state.
-- Database: Alembic baseline, no business tables.
-- Delivery: pinned dependencies/locks, Docker Compose, pytest, Ruff, GitHub Actions, Windows README.
-- Tests: configuration, health/outage behavior, logging, session cleanup, PostgreSQL migration
-  upgrade/downgrade and transactional rollback; frontend typecheck/build; Compose smoke in CI.
-- Done: reproducible startup and checks, limitations reported honestly.
-- Dependency: architecture approval. Risks: Windows networking, dependency compatibility.
+- M1: reproducible FastAPI/React baseline, pinned dependencies, migrations, Docker,
+  health checks, tests, linting, CI, and Windows setup.
+- M2: global staff identity, secure sessions/CSRF, fixed roles, organizations, and
+  tenant isolation.
+- M3: contacts, categories, tickets, assignment, public messages, internal notes,
+  append-only audit, and optimistic concurrency.
+- Evidence: [identity design](identity.md), [ticket design](tickets.md), and the
+  [M3 verification record](m3-verification.md).
 
-### M2: Identity and tenant boundaries (L; completed)
-- Backend: users, organizations, fixed roles, secure password/session lifecycle, CSRF,
-  tenant-scoped authorization. No advanced RLS yet.
-- Frontend: login/logout, organization selection.
-- Database: users, sessions, organizations, memberships, uniqueness and ownership constraints.
-- Tests: role matrix, session expiry/revocation, CSRF, cross-tenant access, final-owner protection.
-- Done: separate organizations cannot access each other's resources.
-- Depends on M1. Risks: credential/session handling and permission scoping.
+## Release 0.2 - Reliable Backend (M4-M5)
 
-### M3: Ticket workflow (L; completed)
-- Backend: contacts, tickets, assignment, priority/category, workflow, messages, audit, version checks.
-- Frontend: queue/filter/detail, clearly distinct public reply/internal-note actions.
-- Database: tenant composite FKs, ticket/message/audit tables and measured indexes.
-- Tests: invalid transitions, internal visibility, rollback, competing assignment/status writes.
-- Done: usable staff helpdesk; explicit conflicts and no tenant leaks.
-- Depends on M2. Risks: scattered business rules and lost updates.
-- Evidence: [ticket design](tickets.md), [M3 verification](m3-verification.md).
+### M4: Customer portal and durable background processing (L; completed)
 
-## Release 0.2 — Reliable Backend (L)
+Independent demo: a customer accepts an invitation, creates a request, receives a staff
+reply, and responds. Pause Redis or the worker and show that committed outbox work is
+recovered. Prove that internal notes never reach customer responses.
 
-Independent demo: customer submits and reads a reply; repeated webhook creates one
-ticket; pause workers/broker and observe recovery; demonstrate SLA deadline notification.
-Add Redis/Celery/one Beat scheduler only when durable jobs are implemented.
-The capabilities below are release goals, not automatically authorized milestones.
-M4 is next for customer portal/account access; its delivery dependencies and final
-scope must be reviewed before development. M3 creates no future-release tables.
+- Contact-bound customer access, verification, invitations, password recovery,
+  revocation, existing sessions, and CSRF.
+- Customer-specific ticket reads and writes; public conversations only.
+- PostgreSQL transactional outbox, Celery/Redis worker, one Beat scheduler, retries,
+  idempotency markers, expiring claims, recovery, and failed-job inspection.
+- Account and public-reply notifications via SMTP; Mailpit captures local mail.
+- Tests: token lifecycle, tenant isolation, privacy, replay, worker/broker failures,
+  and complete customer-to-agent browser journey.
+- Risk: SMTP may accept a message and then time out. Exactly-once email is impossible;
+  delivery ambiguity is recorded and replays use stable event keys.
 
-1. Durable work: outbox, operation IDs, retries, claims, recovery, terminal failures.
-2. In-app notifications and SMTP adapter/local Mailpit for account flows.
-3. Customer access/portal, verification, invitation, recovery.
-4. Simple SLA policy snapshots and overdue scans; small operational metrics.
-5. One signed inbound webhook with duplicate receipt handling.
+### M5: SLA monitoring and reporting (L; not yet approved)
 
-Backend/database: outbox/job/notification records, account/customer tables, SLA tables,
-integration source/receipt tables. Frontend: portal, invitation flows, deadlines,
-notifications, minimal failed-work inspection. Tests: replay, worker/broker failure,
-customer visibility, signed payloads, deadline boundaries and overlapping scans.
-Done: committed work survives interruptions and reporting matches documented SLA rules.
-Depends on 0.1. Risks: external delivery ambiguity, token linking, time semantics.
+- Simple policy snapshots, response/resolution deadlines, overdue scans, and reporting.
+- Define precise time semantics and demonstrate deadlines at boundaries.
+- Requires explicit approval after M4. Inbound webhooks are a separate future decision.
 
-## Release 0.3 — Incident Radar (L)
+## Release 0.3 - Incident Radar (L; later)
 
-Independent demo: related and unrelated complaints produce reviewable evidence; manager
-confirms/rejects; related-ticket retrieval compares lexical and semantic results.
+Independent demo: related and unrelated complaints yield reviewable evidence; a manager
+confirms or rejects a proposal; lexical and semantic search are compared.
 
-1. Manual incidents and role-enforced management.
-2. Deterministic time-window/error-term evidence with distinct-customer support.
-3. Review, rejection suppression, audit and input/configuration versioning.
-4. Local embeddings + pgvector and exact tenant-filtered similar-ticket retrieval.
-5. Held-out evaluation; enable semantic candidate expansion only when justified.
+- Manual incidents, deterministic time-window/error-term evidence, distinct contacts,
+  rejection suppression, audit, and versioned detection inputs.
+- Local embeddings plus pgvector and tenant-filtered related-ticket retrieval.
+- Held-out retrieval and detector evaluation, including hard negative examples.
+- No generative provider required. Similar symptoms are not proof of a shared cause.
 
-Backend/database: incident/proposal/link/detection/embedding records. Frontend:
-incident details, evidence review, related-ticket panel and unavailable-model fallback.
-Tests: concurrent confirmation, tenant isolation, hard negatives, stale embeddings,
-retrieval precision@k/MRR and detector precision/recall. Done: reproducible baseline
-comparison and useful manual operations without AI. Depends on 0.2. Risks: false groups,
-dataset leakage, local model memory. No generative provider is required.
+## Release 1.0 - Portfolio-ready hardening (L; later)
 
-## Release 1.0 — Portfolio-ready hardening (L)
+Independent demo: complete core workflows, recovery and evaluation evidence on a
+reproducible release image.
 
-Independent demo: complete 0.1–0.3 workflow, failure recovery, evaluation report and
-security/operational evidence on a reproducible release image.
+- PostgreSQL RLS, non-owner runtime privileges, transaction-local tenant context,
+  pool reuse and worker tests.
+- Rate limits, retention/anonymization, backup/restore, security review, complete
+  isolation matrix, browser smoke tests, and real-worker failure scenarios.
+- Migration upgrade checks, image builds, deployment runbook, representative load
+  tests with disclosed hardware/data/methodology, and polished documentation.
+- No performance claims without measured results. Production deployment target needs
+  a separate decision.
 
-- Add PostgreSQL RLS, separate DB privileges, transaction-local context and pool/worker tests.
-- Complete rate limits, retention/anonymization, backup/restore, security review and UX errors.
-- Full permission/isolation matrix, browser smoke tests, real-worker failure suite.
-- Representative load tests with hardware/dataset/methodology; no invented performance claims.
-- Migration upgrade verification, versioned image builds, deployment runbook and release checks.
-- README, architecture/ER diagrams, decision records, evaluation report, short demo video.
+## Release 1.1 - Knowledge base and grounded AI Copilot (L; later)
 
-Frontend: polish accessibility, errors/conflicts, empty/loading states. Database: policies,
-privileges, evidence-driven indexes. Done: security and reliability acceptance criteria
-pass and limitations are explicit. Depends on 0.3. Risks: configuration-only security
-assumptions, unverifiable claims. Production deployment target requires a separate decision.
+Independent demo: a published knowledge revision produces a human-reviewable draft
+with verifiable citations; disabled/unavailable providers leave manual workflows usable.
 
-## Release 1.1 — AI Copilot, knowledge base and grounded RAG (L)
+- Immutable knowledge revisions, authorized chunk retrieval, optional embeddings and
+  hosted/local provider adapters, with test fakes.
+- Summaries and suggested drafts include input versions and provenance; no automatic
+  sending. Evaluate retrieval, citations, abstention, injection, leakage, and edit effort.
+- No mandatory paid service. Reject invented citation IDs and recheck source access.
 
-Independent demo: published knowledge revision yields a reviewable draft with verifiable
-citations; unavailable provider falls back to manual work/search.
+## Scope guardrails
 
-- Text articles with immutable revisions, authorized chunk retrieval and indexing.
-- Separate embedding/generation adapters, disabled and test providers, optional hosted/local LLM.
-- Summaries and drafts with input versions, provenance and human approval before sending.
-- Evaluate retrieval, factuality, citation support, abstention and edit effort.
-- Validate outputs, reject invented citation IDs, test injection and cross-tenant leakage.
+Critical path: M1 -> M2 -> M3 -> M4 customer portal/durable work -> M5 SLA -> M7
+Incident Radar -> M9 hardening -> M10 AI Copilot. Milestone identifiers may include
+separate integration/retrieval releases. Only explicitly approved scope may be built.
 
-Frontend: article editor, source display, approve/edit/reject panel. Database: knowledge,
-AI run/suggestion/feedback tables. Done: measured assistance, source access rechecks,
-no autonomous actions. Depends on 1.0. Risks: unsupported answers, private information
-disclosure, model cost/latency. No mandatory paid API; fakes are never presented as real AI.
-
-## Scope guardrails and critical path
-
-M1 → M2 → M3 → durable work → SLA/customer workflows → incidents/retrieval → hardening → Copilot.
-Each slice ends with a working demo and tests. Do not create future module skeletons or
-tables just to mirror this roadmap. No billing, CRM, inbound email threading, uploads,
-business-hours calendars, configurable roles, workflow builder, Kafka or Kubernetes initially.
-Outgoing webhooks and async network batches are optional later extensions, not M1 work.
+No billing, inbound email ticket creation, uploads, business-hours calendars,
+configurable roles, generic workflow builder, Kafka, Kubernetes, or microservices in
+the initial system. Do not create future module skeletons or tables prematurely.

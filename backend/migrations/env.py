@@ -2,6 +2,7 @@ from alembic import context
 from sqlalchemy import create_engine, pool
 
 from app.config import Settings
+from app.customers import models as customer_models  # noqa: F401 -- register M4 metadata
 from app.database import Base
 from app.identity import models  # noqa: F401 -- register metadata for Alembic
 from app.tickets import models as ticket_models  # noqa: F401 -- register M3 metadata

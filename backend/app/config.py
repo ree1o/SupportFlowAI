@@ -1,3 +1,4 @@
+import base64
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
@@ -30,6 +31,12 @@ class Settings(BaseSettings):
     allowed_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     session_ttl_seconds: int = Field(default=28800, ge=60, le=86400)
     session_absolute_seconds: int = Field(default=604800, ge=60, le=2592000)
+    redis_url: str = "redis://redis:6379/0"
+    smtp_host: str = "mailpit"
+    smtp_port: int = Field(default=1025, ge=1, le=65535)
+    email_from: str = "support@supportflow.local"
+    public_app_url: str = "http://localhost:5173"
+    token_encryption_key: SecretStr = SecretStr("MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=")
 
     @model_validator(mode="after")
     def validate_security(self) -> "Settings":
@@ -37,6 +44,20 @@ class Settings(BaseSettings):
             raise ValueError("Production requires secure cookies")
         if self.session_absolute_seconds < self.session_ttl_seconds:
             raise ValueError("Absolute session lifetime must cover the session lifetime")
+        try:
+            encryption_key = base64.urlsafe_b64decode(
+                self.token_encryption_key.get_secret_value().encode()
+            )
+        except (ValueError, TypeError):
+            encryption_key = b""
+        if len(encryption_key) != 32:
+            raise ValueError("Token encryption key must be a URL-safe base64 32-byte key")
+        if (
+            self.environment == "production"
+            and self.token_encryption_key.get_secret_value()
+            == "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA="
+        ):
+            raise ValueError("Production requires a dedicated token encryption key")
         if not self.allowed_origins:
             raise ValueError("At least one trusted origin is required")
         for origin in self.allowed_origins:

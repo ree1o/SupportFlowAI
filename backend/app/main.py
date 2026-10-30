@@ -12,6 +12,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException
 
 from app.config import Settings
+from app.customers.api import identity_router as customer_access_router
+from app.customers.api import router as customer_router
+from app.customers.api import staff_router as customer_staff_router
 from app.database import Database
 from app.errors import AppError, error_response
 from app.health import router
@@ -115,5 +118,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(router)
     app.include_router(identity_router)
+    app.include_router(customer_router)
+    app.include_router(customer_access_router)
+    app.include_router(customer_staff_router)
     app.include_router(tickets_router)
     return app

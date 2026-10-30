@@ -90,6 +90,21 @@ frontend entry/layout/styles/package lock, Compose local cookie configuration,
 architecture/data-model/roadmap documents and the milestone boundary in AGENTS.md.
 Real `.env`, local database URLs, dependency folders and screenshots remain ignored.
 
+## M4 additions
+
+- `backend/app/customers/{models,schemas,service,api}.py` - explicit customer grants,
+  account token lifecycle, customer-only ticket operations, notifications and staff recovery APIs.
+- `backend/app/jobs.py` - Celery worker, outbox relay, SMTP delivery and retry recovery.
+- `backend/migrations/versions/0004_customer_portal_and_durable_jobs.py` - additive
+  customer access, account, outbox, job, notification and customer-author schema changes.
+- `backend/tests/test_customers.py` - customer privacy, tenant isolation, account lifecycle,
+  outbox delivery, failure and worker-recovery integration scenarios.
+- `frontend/src/customer/Portal.tsx` - customer login, invitation, recovery, requests,
+  public conversation and notifications.
+- `frontend/e2e/customer.spec.ts` - desktop/mobile customer-to-agent conversation workflow.
+- `docs/customer-portal.md` - M4 API, security, processing and local demo guide.
+- `compose.yaml` - Redis, Celery/Beat worker and Mailpit local SMTP.
+
 ## M3 additions
 
 - `backend/app/tickets/{models,schemas,service,api}.py` — helpdesk domain, validation,

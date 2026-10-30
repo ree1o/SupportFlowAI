@@ -1,7 +1,7 @@
 from typing import Annotated, cast
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
 from app.identity.api import DB, Auth, WriteAuth
 from app.tickets import service
@@ -142,16 +142,30 @@ def update_ticket(
 
 @router.post("/tickets/{ticket_id}/replies", response_model=TicketView, status_code=201)
 def reply(
-    organization_id: UUID, ticket_id: UUID, data: MessageCreate, auth: WriteAuth, db: DB
+    organization_id: UUID,
+    ticket_id: UUID,
+    data: MessageCreate,
+    auth: WriteAuth,
+    db: DB,
+    request: Request,
 ) -> TicketView:
-    return service.post_message(db, auth, organization_id, ticket_id, data, Visibility.PUBLIC)
+    return service.post_message(
+        db, auth, organization_id, ticket_id, data, Visibility.PUBLIC, request.app.state.settings
+    )
 
 
 @router.post("/tickets/{ticket_id}/notes", response_model=TicketView, status_code=201)
 def note(
-    organization_id: UUID, ticket_id: UUID, data: MessageCreate, auth: WriteAuth, db: DB
+    organization_id: UUID,
+    ticket_id: UUID,
+    data: MessageCreate,
+    auth: WriteAuth,
+    db: DB,
+    request: Request,
 ) -> TicketView:
-    return service.post_message(db, auth, organization_id, ticket_id, data, Visibility.INTERNAL)
+    return service.post_message(
+        db, auth, organization_id, ticket_id, data, Visibility.INTERNAL, request.app.state.settings
+    )
 
 
 @router.get("/tickets/{ticket_id}/messages", response_model=MessagePage)

@@ -2,9 +2,10 @@
 
 Intelligent Customer Support & Incident Management Platform.
 
-**Current implementation: M3 — Ticket Management, Conversations, and Audit History.**
+**Current implementation: M4 - Customer Portal, Account Lifecycle, and Durable Background Processing.**
 A working staff helpdesk extends the verified identity and application baseline.
-M4 requires separate approval; no customer portal or email delivery is enabled.
+The staff helpdesk now supports customer self-service and recoverable asynchronous
+notifications. M5 (SLA monitoring/reporting) requires separate approval.
 
 ## Documentation
 
@@ -17,8 +18,8 @@ M4 requires separate approval; no customer portal or email delivery is enabled.
 - [M2 verification results](docs/m2-verification.md)
 - [Ticket API, workflow, permissions, tenant constraints and concurrency](docs/tickets.md)
 - [M3 verification results](docs/m3-verification.md)
+- [Customer portal, account lifecycle, and background processing](docs/customer-portal.md)
 
-Owner and Administrator will manage/approve incidents; Agent can view/report candidates.
 Basic authorization and tenant isolation are implemented. PostgreSQL RLS is deferred to 1.0.
 
 ## Implemented baseline
@@ -26,13 +27,15 @@ Basic authorization and tenant isolation are implemented. PostgreSQL RLS is defe
 - FastAPI application factory and lifecycle management.
 - Validated settings and secret-masked PostgreSQL configuration.
 - Synchronous SQLAlchemy pool and independent sessions with rollback/close cleanup.
-- Additive Alembic migrations for four identity and five helpdesk tables; no automatic `create_all`.
+- Additive Alembic migrations for identity, helpdesk, customer access, notifications and durable jobs; no automatic `create_all`.
 - Database-independent liveness and migration-aware readiness.
 - JSON application logs, server-generated request IDs, and safe API errors.
 - React/TypeScript login, onboarding, protected workspace and team management, plus `/status`.
 - Argon2id passwords, opaque hashed sessions, Origin/CSRF checks, explicit tenant RBAC.
 - Organization-scoped contacts, categories, ticket queues, assignment and lifecycle rules.
 - Separate public replies/internal notes, append-only audit history, atomic version conflicts.
+- Customer verification, invitation, recovery, contact-bound access, ticket portal and notifications.
+- PostgreSQL transactional outbox, Celery/Redis worker, local SMTP via Mailpit, retries and recovery.
 - Responsive staff queue, intake/detail, contact management and category settings.
 - Exact Python dependency pins with hash locks and npm package lock.
 - Local Docker Compose startup ordering and GitHub Actions validation.
@@ -58,13 +61,14 @@ starts the API only after migration success. No local Python/Node install is req
 Open:
 
 - UI: <http://localhost:5173>
+- Local email inbox (Mailpit): <http://localhost:8025>
 - OpenAPI documentation: <http://localhost:8000/api/docs>
 - Liveness: <http://localhost:8000/api/health/live>
 - Readiness: <http://localhost:8000/api/health/ready>
 
 ```powershell
 docker compose ps
-docker compose logs --tail 100 api migrate db
+docker compose logs --tail 100 api migrate db worker
 docker compose down
 ```
 
@@ -126,6 +130,11 @@ Do not run the host API and Compose API on port 8000 simultaneously.
 | SUPPORTFLOW_ALLOWED_ORIGINS | JSON array of exact trusted origins; local UI origins by default |
 | SUPPORTFLOW_SESSION_TTL_SECONDS | 28800 (8 hours) |
 | SUPPORTFLOW_SESSION_ABSOLUTE_SECONDS | 604800 (7 days); renewal cannot exceed this original limit |
+| SUPPORTFLOW_REDIS_URL | `redis://redis:6379/0` in Compose |
+| SUPPORTFLOW_SMTP_HOST / PORT | Mailpit service and SMTP port 1025 in Compose |
+| SUPPORTFLOW_PUBLIC_APP_URL | `http://localhost:5173` for local account-action links |
+| SUPPORTFLOW_EMAIL_FROM | Local sender identity captured by Mailpit |
+| SUPPORTFLOW_TOKEN_ENCRYPTION_KEY | 32-byte Fernet key; use a unique secret outside local development |
 
 Environment variables override `.env`. URL-encode special characters in URL credentials.
 Compose's interpolated local password should be URL-safe; do not paste unescaped reserved
@@ -197,7 +206,8 @@ npm.cmd run test:e2e
 ```
 
 Use `$env:PLAYWRIGHT_CHANNEL = 'chrome'` to use an installed Chrome browser instead.
-Desktop and mobile projects create synthetic accounts. Prefer a disposable test stack;
+Desktop and mobile projects cover both staff and customer ticket workflows and create
+synthetic accounts. Prefer a disposable test stack;
 they intentionally leave those demo accounts for inspection. Never target a production URL.
 
 Docker-only backend unit test alternative, from root:

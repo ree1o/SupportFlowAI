@@ -21,6 +21,7 @@ import { Health } from "./Health";
 import { AuthProvider, useAuth, ErrorText, message } from "./auth";
 import { Sidebar } from "./Sidebar";
 import { SupportApp } from "./support/SupportApp";
+import { CustomerAccount, CustomerInvitation, CustomerPortal, CustomerRecovery, CustomerVerify } from "./customer/Portal";
 import "./styles.css";
 
 function AccountForm({ register = false }: { register?: boolean }) {
@@ -535,6 +536,12 @@ createRoot(document.getElementById("root")!).render(
               <Routes>
                 <Route path="/login" element={<AccountForm />} />
                 <Route path="/register" element={<AccountForm register />} />
+                <Route path="/customer/login" element={<CustomerAccount />} />
+                <Route path="/customer/register" element={<CustomerAccount register />} />
+                <Route path="/customer/verify" element={<CustomerVerify />} />
+                <Route path="/customer/recover" element={<CustomerRecovery />} />
+                <Route path="/customer/invitation" element={<CustomerInvitation />} />
+                <Route path="/customer/*" element={<CustomerPortal />} />
                 <Route element={<Protected />}>
                   <Route path="/app" element={<Workspace />} />
                   <Route path="/app/*" element={<SupportApp />} />

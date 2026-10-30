@@ -1,9 +1,17 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import type { Organization } from "../api";
 import { api } from "../api";
 import { ErrorText, message } from "../auth";
 import { useRemote } from "./remote";
 import type { Contact, Page } from "./types";
+
+type CustomerGrant = {
+  id: string;
+  contact_id: string;
+  email: string;
+  user_name: string;
+  is_active: boolean;
+};
 
 export function Contacts({ org }: { org: Organization }) {
   const [q, setQ] = useState("");
@@ -64,6 +72,7 @@ export function Contacts({ org }: { org: Organization }) {
         <ContactEditor
           key={selected ?? "new"}
           root={root}
+          organizationId={org.id}
           id={selected}
           manager={org.role !== "agent"}
           done={() => {
@@ -148,12 +157,14 @@ export function Contacts({ org }: { org: Organization }) {
 
 function ContactEditor({
   root,
+  organizationId,
   id,
   manager,
   done,
   cancel,
 }: {
   root: string;
+  organizationId: string;
   id: string | null;
   manager: boolean;
   done: () => void;
@@ -162,7 +173,26 @@ function ContactEditor({
   const remote = useRemote<Contact>(id ? `${root}/${id}` : null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [inviteNotice, setInviteNotice] = useState("");
+  const [grants, setGrants] = useState<CustomerGrant[]>([]);
   const contact = id ? remote.data : undefined;
+  useEffect(() => {
+    let active = true;
+    if (!manager || !contact) {
+      setGrants([]);
+      return;
+    }
+    void api<CustomerGrant[]>(`/organizations/${organizationId}/customer-access`)
+      .then((value) => {
+        if (active) setGrants(value.filter((grant) => grant.contact_id === contact.id));
+      })
+      .catch(() => {
+        if (active) setGrants([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [manager, organizationId, contact?.id]);
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -186,6 +216,40 @@ function ContactEditor({
     try {
       await api(`${root}/${id}`, "PATCH", { is_active: !contact?.is_active });
       done();
+    } catch (err) {
+      setError(message(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function invite() {
+    if (!contact) return;
+    setBusy(true);
+    setError("");
+    setInviteNotice("");
+    try {
+      const result = await api<{ message: string }>(
+        `/organizations/${organizationId}/customer-access/invitations`,
+        "POST",
+        { contact_id: contact.id },
+      );
+      setInviteNotice(result.message);
+    } catch (err) {
+      setError(message(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function revokeAccess(accessId: string) {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/organizations/${organizationId}/customer-access/${accessId}`, "DELETE");
+      setGrants((value) =>
+        value.map((grant) =>
+          grant.id === accessId ? { ...grant, is_active: false } : grant,
+        ),
+      );
     } catch (err) {
       setError(message(err));
     } finally {
@@ -230,6 +294,17 @@ function ContactEditor({
       )}
       {contact && (
         <div className="contact-meta">
+          {inviteNotice && <p className="success" role="status">{inviteNotice}</p>}
+          {grants.map((grant) => (
+            <p className="muted" key={grant.id}>
+              Portal access: {grant.user_name} ({grant.email}) — {grant.is_active ? "active" : "revoked"}
+              {grant.is_active && manager && (
+                <button className="text-button" disabled={busy} onClick={() => void revokeAccess(grant.id)}>
+                  Revoke access
+                </button>
+              )}
+            </p>
+          ))}
           <p className="muted">
             Created {new Date(contact.created_at).toLocaleString()} ·{" "}
             {contact.is_active
@@ -237,13 +312,22 @@ function ContactEditor({
               : "Archived customer record"}
           </p>
           {manager && (
-            <button
-              className="text-button"
-              disabled={busy}
-              onClick={() => void archive()}
-            >
-              {contact.is_active ? "Archive contact" : "Restore contact"}
-            </button>
+            <div className="contact-actions">
+              <button
+                className="text-button"
+                disabled={busy || !contact.is_active || !contact.email}
+                onClick={() => void invite()}
+              >
+                Invite to customer portal
+              </button>
+              <button
+                className="text-button"
+                disabled={busy}
+                onClick={() => void archive()}
+              >
+                {contact.is_active ? "Archive contact" : "Restore contact"}
+              </button>
+            </div>
           )}
         </div>
       )}

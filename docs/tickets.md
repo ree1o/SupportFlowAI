@@ -42,8 +42,9 @@ The UI mirrors capabilities returned by the server; backend services enforce the
 | `resolved` | `open`, `closed` | Resolution recorded; internal notes still allowed |
 | `closed` | `open`, manager only | Finalized; reopen in a separate request before editing |
 
-Priorities: `low`, `normal` (default), `high`, `urgent`. There are no automatic routing,
-notification or SLA side effects yet. Public replies require open/pending; notes require
+Priorities: `low`, `normal` (default), `high`, `urgent`. Public staff replies create a
+customer notification/outbox event in the same transaction; SMTP delivery is asynchronous.
+Internal notes do not notify customers. SLA side effects are not implemented. Public replies require open/pending; notes require
 open/pending/resolved and working permission. Replies never change status implicitly.
 Same-value PATCH on a nonclosed ticket checks its version but creates no audit/version.
 A closed ticket accepts only a manager's isolated `status=open` change.
@@ -243,8 +244,8 @@ Public replies and notes have different input operations; clients cannot set vis
 The public DTO contains only message id, author display name, body and creation time.
 The public query filters internal records in SQL and never returns their bodies or
 staff-only fields. Its cursor is a staff paging mechanism; **this endpoint is not a
-customer access API**. Future M4 must independently authorize each customer/contact and
-define its public pagination contract. The full messages/activity APIs are staff-only.
+customer access API**. Customer access uses separate M4 endpoints and schemas; the full
+messages/activity APIs remain staff-only. See [customer portal design](customer-portal.md).
 
 Every successful create/change/message transaction writes audit records with scoped
 actor membership, display-name snapshot, action, ticket target, timestamp and safe
@@ -270,9 +271,10 @@ Disable that Agent and confirm the next request is rejected. With two organizati
 use a valid contact/category/member/ticket UUID from the other tenant: the API rejects
 the link, and direct invalid inserts fail PostgreSQL composite FK constraints.
 
-M3 has no customer authentication, email, attachments, rich-text editor, message editing,
+M4 adds customer authentication, invitation/verification/recovery email, public portal
+conversations, notifications and durable mail jobs. M3 has no attachments, rich-text editor, message editing,
 ticket deletion/title/requester editing, tags, bulk actions, polling/live updates,
-notifications, jobs, SLA, incidents, retrieval or AI. Categories/members are simple lists;
+SLA, incidents, retrieval or AI. Categories/members are simple lists;
 large-tenant lookup scaling is deferred. Lists are not snapshot-consistent across pages.
 No performance benchmark or public production security claim is made. Use synthetic data
-with the loopback-only HTTP Compose setup. M4 requires explicit approval.
+with the loopback-only HTTP Compose setup. M5 requires explicit approval.

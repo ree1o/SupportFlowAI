@@ -710,6 +710,69 @@ textarea {
   color: #a9b8cd;
   line-height: 1.6;
 }
+.customer-shell {
+  min-height: 100vh;
+}
+.customer-header {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  padding: 18px clamp(16px, 4vw, 56px);
+  border-bottom: 1px solid #2c3b50;
+  background: #131e2f;
+}
+.customer-header nav {
+  display: flex;
+  flex-direction: row;
+  margin: 0;
+}
+.customer-header nav a {
+  padding: 9px 12px;
+}
+.customer-user {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-left: auto;
+  color: #b8c5d8;
+  font-size: 0.85rem;
+}
+.customer-main {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 44px 24px;
+}
+.customer-account {
+  max-width: 540px;
+  margin: 48px auto 0;
+}
+.customer-org-select {
+  max-width: 360px;
+  margin: 0 0 28px;
+}
+.customer-status-filter {
+  min-width: 160px;
+  margin: 0;
+}
+.customer-ticket-meta,
+.notification-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  color: #a9b8cd;
+  font-size: 0.82rem;
+}
+.notification-row {
+  border-bottom: 1px solid #334257;
+}
+.success {
+  padding: 13px 16px;
+  border: 1px solid #397964;
+  border-radius: 8px;
+  background: #193a36;
+  color: #a4f0d1;
+}
 @media (max-width: 1200px) {
   .ticket-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -799,5 +862,26 @@ textarea {
   }
   .panel {
     padding: 20px;
+  }
+  .customer-header {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .customer-header nav {
+    order: 3;
+    width: 100%;
+    gap: 0;
+  }
+  .customer-user {
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .customer-main {
+    padding: 25px 16px;
+  }
+  .customer-ticket-meta,
+  .notification-row {
+    flex-direction: column;
   }
 }

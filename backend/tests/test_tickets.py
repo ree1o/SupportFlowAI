@@ -6,12 +6,12 @@ from uuid import UUID, uuid4
 import pytest
 from alembic import command
 from fastapi.testclient import TestClient
-from sqlalchemy import delete, func, inspect, select, update
+from sqlalchemy import delete, func, inspect, select, text, update
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from app.errors import AppError
 from app.identity.models import Membership, Organization
-from app.identity.security import SESSION_COOKIE, utcnow
+from app.identity.security import SESSION_COOKIE, token_hash, utcnow
 from app.identity.service import authenticate
 from app.main import create_app
 from app.tickets import service
@@ -830,8 +830,25 @@ def test_m2_upgrade_preserves_users_sessions_and_memberships(desk):
     raw = desk["clients"]["owner"].cookies.get(SESSION_COOKIE)
     command.downgrade(desk["alembic"], "0002_identity")
     with desk["db"].session() as db:
-        assert authenticate(db, raw).user.email == "owner@example.com"
-        assert db.scalar(select(func.count()).select_from(Membership)) == 6
+        user = (
+            db.execute(
+                text("SELECT id, email FROM users WHERE email = :email"),
+                {"email": "owner@example.com"},
+            )
+            .mappings()
+            .one()
+        )
+        assert (
+            db.scalar(
+                text(
+                    "SELECT count(*) FROM sessions WHERE user_id = :user_id AND token_hash = :hash"
+                ),
+                {"user_id": user["id"], "hash": token_hash(raw)},
+            )
+            == 1
+        )
+        assert db.scalar(text("SELECT count(*) FROM memberships")) == 6
+        assert user["email"] == "owner@example.com"
     command.upgrade(desk["alembic"], "head")
     assert "tickets" in inspect(desk["db"].engine).get_table_names()
     assert desk["clients"]["owner"].get("/api/auth/me").status_code == 200

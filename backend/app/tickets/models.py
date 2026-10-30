@@ -106,10 +106,19 @@ class Ticket(Base):
             ["memberships.organization_id", "memberships.id"],
             name="fk_tickets_creator",
         ),
+        ForeignKeyConstraint(
+            ["organization_id", "created_by_customer_access_id"],
+            ["customer_access.organization_id", "customer_access.id"],
+            name="fk_tickets_creator_customer",
+        ),
         CheckConstraint("status IN ('open', 'pending', 'resolved', 'closed')", name="valid_status"),
         CheckConstraint("priority IN ('low', 'normal', 'high', 'urgent')", name="valid_priority"),
         CheckConstraint("version >= 1", name="positive_version"),
         CheckConstraint("char_length(btrim(title)) > 0", name="nonempty_title"),
+        CheckConstraint(
+            "(created_by_membership_id IS NOT NULL) <> (created_by_customer_access_id IS NOT NULL)",
+            name="single_creator",
+        ),
         CheckConstraint(
             "(status IN ('resolved', 'closed')) = (resolved_at IS NOT NULL)",
             name="resolution_state",
@@ -137,7 +146,8 @@ class Ticket(Base):
     requester_contact_id: Mapped[UUID]
     category_id: Mapped[UUID | None]
     assigned_membership_id: Mapped[UUID | None]
-    created_by_membership_id: Mapped[UUID]
+    created_by_membership_id: Mapped[UUID | None]
+    created_by_customer_access_id: Mapped[UUID | None] = mapped_column(nullable=True)
     title: Mapped[str] = mapped_column(String(200))
     status: Mapped[str] = mapped_column(String(20), default=Status.OPEN)
     priority: Mapped[str] = mapped_column(String(10), default=Priority.NORMAL)
@@ -163,6 +173,11 @@ class Message(Base):
             name="fk_messages_ticket",
         ),
         ForeignKeyConstraint(
+            ["organization_id", "author_customer_access_id"],
+            ["customer_access.organization_id", "customer_access.id"],
+            name="fk_messages_customer_author",
+        ),
+        ForeignKeyConstraint(
             ["organization_id", "author_membership_id"],
             ["memberships.organization_id", "memberships.id"],
             name="fk_messages_author",
@@ -170,6 +185,14 @@ class Message(Base):
         CheckConstraint("visibility IN ('public', 'internal')", name="valid_visibility"),
         CheckConstraint("char_length(btrim(body)) BETWEEN 1 AND 10000", name="valid_body"),
         CheckConstraint("ticket_version >= 1", name="positive_version"),
+        CheckConstraint(
+            "(author_membership_id IS NOT NULL) <> (author_customer_access_id IS NOT NULL)",
+            name="single_author",
+        ),
+        CheckConstraint(
+            "visibility <> 'internal' OR author_membership_id IS NOT NULL",
+            name="internal_staff_only",
+        ),
         Index(
             "ix_messages_public_timeline",
             "organization_id",
@@ -181,7 +204,8 @@ class Message(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     organization_id: Mapped[UUID] = mapped_column(ForeignKey("organizations.id"))
     ticket_id: Mapped[UUID]
-    author_membership_id: Mapped[UUID]
+    author_membership_id: Mapped[UUID | None]
+    author_customer_access_id: Mapped[UUID | None] = mapped_column(nullable=True)
     author_name: Mapped[str] = mapped_column(String(100))
     visibility: Mapped[str] = mapped_column(String(10))
     body: Mapped[str] = mapped_column(Text)
@@ -196,6 +220,11 @@ class AuditEvent(Base):
             ["organization_id", "ticket_id"],
             ["tickets.organization_id", "tickets.id"],
             name="fk_audit_ticket",
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "actor_customer_access_id"],
+            ["customer_access.organization_id", "customer_access.id"],
+            name="fk_audit_customer_actor",
         ),
         ForeignKeyConstraint(
             ["organization_id", "actor_membership_id"],
@@ -216,6 +245,10 @@ class AuditEvent(Base):
         ),
         CheckConstraint("ticket_version >= 1 AND sequence >= 0", name="valid_order"),
         CheckConstraint(
+            "(actor_membership_id IS NOT NULL) <> (actor_customer_access_id IS NOT NULL)",
+            name="single_actor",
+        ),
+        CheckConstraint(
             "action IN ('ticket.created', 'ticket.status_changed', 'ticket.priority_changed', "
             "'ticket.category_changed', 'ticket.assignment_changed', "
             "'message.public_posted', 'message.note_added')",
@@ -226,7 +259,8 @@ class AuditEvent(Base):
     organization_id: Mapped[UUID] = mapped_column(ForeignKey("organizations.id"))
     ticket_id: Mapped[UUID]
     message_id: Mapped[UUID | None]
-    actor_membership_id: Mapped[UUID]
+    actor_membership_id: Mapped[UUID | None]
+    actor_customer_access_id: Mapped[UUID | None] = mapped_column(nullable=True)
     actor_name: Mapped[str] = mapped_column(String(100))
     action: Mapped[str] = mapped_column(String(40))
     changes: Mapped[dict[str, Any]] = mapped_column(JSONB)

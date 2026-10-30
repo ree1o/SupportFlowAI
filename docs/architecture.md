@@ -1,10 +1,10 @@
-# Architecture — approved direction, M3 implementation boundary
+# Architecture — approved direction, M4 implementation boundary
 
 Status: approved direction with release adjustments, 2026-10-28.
 This document distinguishes intended architecture from implemented functionality.
-M1–M3 are implemented. See [identity design](identity.md) and [ticket design](tickets.md)
-for current endpoints, permissions, security, transaction rules and limitations.
-Customer access, background jobs, incidents and AI remain future work.
+M1–M4 are implemented. See [identity design](identity.md), [ticket design](tickets.md),
+and [customer portal design](customer-portal.md) for current endpoints, permissions,
+security, transaction rules and limitations. SLA, incidents, retrieval and AI remain later work.
 
 ## Product and scope
 
@@ -20,14 +20,14 @@ English demo data, one region, modest volumes, and one developer are initial ass
 | --- | --- |
 | Application structure | Modular monolith, one codebase and relational database. Separate API/worker processes later are not microservices. |
 | API | FastAPI and Pydantic; typed REST boundaries without unnecessary internal HTTP calls. |
-| Persistence | Synchronous SQLAlchemy and Psycopg; simpler transaction handling shared by API and future Celery workers. |
+| Persistence | Synchronous SQLAlchemy and Psycopg; simpler transaction handling shared by API and Celery workers. |
 | Schema changes | Alembic is the only schema lifecycle mechanism. No startup `create_all`. |
 | Transactions | Services own explicit transactions; request dependencies close/roll back sessions but never silently commit. |
 | Concurrency | Tickets have a required expected version; stale writes return 409. Short row locks make version checks and writes atomic. |
 | Authentication (M2) | Opaque server-side sessions, hashed credentials, secure cookies, CSRF protection. No mandatory JWT. |
 | Isolation (M2 onward) | Explicit organization-scoped queries, authorization tests, and composite tenant foreign keys. |
 | RLS | Defense in depth in release 1.0. Not a substitute for application authorization. Separate migration/runtime privileges then. |
-| Queue (0.2) | Celery + Redis only when notifications and SLA scans need durable execution. PostgreSQL outbox is authoritative. |
+| Queue (0.2) | Celery + Redis dispatch PostgreSQL outbox jobs; outbox and job rows remain authoritative and recoverable. |
 | Frontend | React + TypeScript + Vite. Same-origin `/api` proxy; polling before SSE/WebSockets. |
 | Retrieval (0.3) | Lexical baseline, then local embeddings and pgvector, evaluated on held-out cases. |
 | Generation (1.1) | Optional providers and test fakes; approved drafts only, never autonomous sends. |
@@ -38,7 +38,7 @@ Async network I/O may later benefit bounded outgoing delivery batches. Blocking 
 operations use synchronous routes and must not be placed directly on the event loop.
 CPU-heavy embeddings run in workers, not API requests.
 
-## Current M3 deployment
+## Current M4 deployment
 
 ```mermaid
 flowchart LR
@@ -46,9 +46,14 @@ flowchart LR
     Frontend -->|/api proxy| API[FastAPI]
     API -->|short sync sessions| DB[(PostgreSQL)]
     Migration[Alembic one-shot process] --> DB
+    Worker[Celery worker + Beat] --> DB
+    Worker --> Redis[(Redis broker)]
+    Worker --> SMTP[Mailpit local SMTP]
 ```
 
-Compose waits for database health, then a successful migration, then starts the API.
+Compose waits for database health, then a successful migration, then starts the API,
+worker, Redis, Mailpit and frontend. The worker polls committed outbox rows and sends
+SMTP outside business transactions; Redis loss does not lose committed events.
 The frontend container is a local development/preview server, not a production hosting
 configuration. Database/API/frontend published ports bind to loopback.
 
@@ -71,8 +76,8 @@ flowchart TB
     Workers -.-> LLM[Optional generation provider in 1.1]
 ```
 
-Modules are introduced when a feature needs them: identity/tenancy, tickets, SLA,
-notifications/integrations, incidents, knowledge, AI assistance, reporting.
+Modules are introduced when a feature needs them: identity/tenancy, tickets, customer
+access/notifications, SLA, incidents, knowledge, AI assistance, reporting.
 Routes validate/authenticate and call services. Services enforce policy and own writes.
 Focused queries are sufficient; no generic repository framework is required.
 Tickets do not depend on AI. Incidents can be managed without detection models.
@@ -130,6 +135,13 @@ Logical operation IDs, unique effects, expiring claims, bounded retries, recover
 and recorded terminal failures provide retryable processing, not exactly-once execution.
 An external receiver may have acted despite a timeout; stable delivery IDs support
 deduplication where the receiver supports it. SMTP cannot guarantee exactly-once delivery.
+
+M4 customer access is a separate organization/contact/user grant; matching email alone
+never authorizes a contact. Account tokens are random, short-lived, single-use and stored
+as hashes. Invitation email payloads are encrypted at rest in the outbox. Customers use
+the existing opaque server-side session and CSRF controls. Customer ticket reads select
+only public messages in SQL, scope both organization and requester contact, and expose no
+staff audit/activity endpoint. See [customer portal design](customer-portal.md).
 
 ## SLA contract (0.2)
 

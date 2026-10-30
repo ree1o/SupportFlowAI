@@ -2,8 +2,8 @@
 
 M2 adds global accounts, server-side sessions, organizations and staff memberships.
 Identity owns four business tables. [M3](tickets.md) adds five helpdesk tables and
-staff ticket workflows. RLS, email verification/invitations, password recovery,
-customer access and AI remain later work.
+staff ticket workflows. M4 adds separate customer access, email verification/invitations,
+and password recovery without changing staff membership semantics. RLS and AI remain later work.
 
 ## API contract
 

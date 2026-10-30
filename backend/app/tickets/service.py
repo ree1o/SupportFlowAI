@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session
 
+from app.config import Settings
 from app.errors import AppError
 from app.identity.models import Membership, Role, User
 from app.identity.security import utcnow
@@ -533,6 +534,7 @@ def post_message(
     id: UUID,
     data: MessageCreate,
     visibility: Visibility,
+    settings: Settings,
 ) -> TicketView:
     with transaction(db, "Conversation data conflicts with existing history"):
         actor = context(db, auth, org, True)
@@ -560,6 +562,11 @@ def post_message(
         )
         db.add(message)
         db.flush()
+        if visibility == Visibility.PUBLIC:
+            from app.customers.service import staff_reply_notifications
+
+            staff_reply_notifications(db, record.id, message.id, settings)
+            db.flush()
         audit(
             db,
             record,
