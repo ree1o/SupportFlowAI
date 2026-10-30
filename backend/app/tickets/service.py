@@ -483,6 +483,151 @@ def create_ticket(db: Session, auth: AuthContext, org: UUID, data: TicketCreate)
     return result
 
 
+def create_integration_ticket(
+    db: Session,
+    org: UUID,
+    source_id: UUID,
+    source_name: str,
+    contact_id: UUID,
+    title: str,
+    body: str,
+    priority: Priority,
+) -> tuple[Ticket, Message]:
+    """Create an intake ticket with explicit integration provenance.
+
+    The caller owns the enclosing transaction and its idempotency receipt.
+    """
+    active_contact(db, org, contact_id)
+    now = utcnow()
+    ticket = Ticket(
+        organization_id=org,
+        requester_contact_id=contact_id,
+        created_by_integration_source_id=source_id,
+        title=title,
+        priority=priority,
+        status=Status.OPEN,
+        version=1,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(ticket)
+    db.flush()
+    snapshot_ticket(db, ticket, now)
+    message = Message(
+        organization_id=org,
+        ticket_id=ticket.id,
+        author_integration_source_id=source_id,
+        author_name=f"{source_name} integration"[:100],
+        visibility=Visibility.PUBLIC,
+        body=body,
+        ticket_version=1,
+        created_at=now,
+    )
+    db.add(message)
+    db.flush()
+    db.add(
+        AuditEvent(
+            organization_id=org,
+            ticket_id=ticket.id,
+            actor_integration_source_id=source_id,
+            actor_name=f"{source_name} integration"[:100],
+            action="ticket.created",
+            changes={
+                "requester_contact_id": str(contact_id),
+                "priority": priority,
+                "status": Status.OPEN,
+                "initial_message_id": str(message.id),
+                "origin": "integration",
+            },
+            ticket_version=1,
+            sequence=0,
+            created_at=now,
+        )
+    )
+    db.flush()
+    return ticket, message
+
+
+def append_integration_message(
+    db: Session,
+    org: UUID,
+    source_id: UUID,
+    source_name: str,
+    contact_id: UUID,
+    ticket_id: UUID,
+    body: str,
+) -> tuple[Ticket, Message]:
+    """Append one public inbound message while serializing on the ticket row."""
+    ticket = db.scalar(
+        select(Ticket)
+        .where(Ticket.organization_id == org, Ticket.id == ticket_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if ticket is None or ticket.requester_contact_id != contact_id:
+        raise AppError(404, "not_found", "Ticket not found")
+    active_contact(db, org, contact_id)
+    if ticket.status == Status.CLOSED:
+        raise AppError(422, "invalid_transition", "Closed tickets cannot receive replies")
+    now = max(utcnow(), ticket.updated_at)
+    old_status = ticket.status
+    ticket.version += 1
+    ticket.updated_at = now
+    if old_status == Status.RESOLVED:
+        ticket.status = Status.OPEN
+        ticket.resolved_at = None
+        ticket.closed_at = None
+    message = Message(
+        organization_id=org,
+        ticket_id=ticket.id,
+        author_integration_source_id=source_id,
+        author_name=f"{source_name} integration"[:100],
+        visibility=Visibility.PUBLIC,
+        body=body,
+        ticket_version=ticket.version,
+        created_at=now,
+    )
+    db.add(message)
+    db.flush()
+    if old_status == Status.RESOLVED:
+        db.add(
+            AuditEvent(
+                organization_id=org,
+                ticket_id=ticket.id,
+                actor_integration_source_id=source_id,
+                actor_name=f"{source_name} integration"[:100],
+                action="ticket.status_changed",
+                changes={"from": old_status, "to": Status.OPEN, "origin": "integration"},
+                ticket_version=ticket.version,
+                sequence=0,
+                created_at=now,
+            )
+        )
+    db.add(
+        AuditEvent(
+            organization_id=org,
+            ticket_id=ticket.id,
+            message_id=message.id,
+            actor_integration_source_id=source_id,
+            actor_name=f"{source_name} integration"[:100],
+            action="message.public_posted",
+            changes={
+                "visibility": Visibility.PUBLIC,
+                "message_id": str(message.id),
+                "origin": "integration",
+            },
+            ticket_version=ticket.version,
+            sequence=1 if old_status == Status.RESOLVED else 0,
+            created_at=now,
+        )
+    )
+    from app.customers.service import integration_reply_notifications
+
+    integration_reply_notifications(db, ticket, message, now)
+    db.flush()
+    return ticket, message
+
+
 def mutable_ticket(db: Session, org: UUID, id: UUID, actor: Membership, expected: int) -> Ticket:
     record = db.scalar(
         select(Ticket)
@@ -681,6 +826,8 @@ def activity(
             AuditView(
                 id=row.id,
                 actor_membership_id=row.actor_membership_id,
+                actor_customer_access_id=row.actor_customer_access_id,
+                actor_integration_source_id=row.actor_integration_source_id,
                 actor_name=row.actor_name,
                 action=row.action,
                 target_type="message" if row.message_id else "ticket",

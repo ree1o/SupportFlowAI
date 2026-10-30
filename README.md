@@ -2,10 +2,11 @@
 
 Intelligent Customer Support & Incident Management Platform.
 
-**Current implementation: M5 - SLA Monitoring & Operational Reporting.**
+**Current implementation: M6 - Secure Inbound Integrations & Webhooks.**
 A working staff helpdesk extends the verified identity and application baseline.
 The staff helpdesk now supports customer self-service and recoverable asynchronous
-notifications, SLA snapshots, deadline monitoring, staff breach alerts, and operational reports.
+notifications, SLA snapshots, deadline monitoring, staff breach alerts, operational reports,
+and signed customer intake from explicitly contact-bound integration sources.
 
 ## Documentation
 
@@ -20,6 +21,7 @@ notifications, SLA snapshots, deadline monitoring, staff breach alerts, and oper
 - [M3 verification results](docs/m3-verification.md)
 - [Customer portal, account lifecycle, and background processing](docs/customer-portal.md)
 - [SLA semantics, deadlines, metrics, and API](docs/sla.md)
+- [Signed inbound webhook integration guide](docs/integrations.md)
 
 Basic authorization and tenant isolation are implemented. PostgreSQL RLS is deferred to 1.0.
 
@@ -40,6 +42,8 @@ Basic authorization and tenant isolation are implemented. PostgreSQL RLS is defe
 - Responsive staff queue, intake/detail, contact management and category settings.
 - Versioned organization SLA policies, immutable ticket target snapshots, UTC deadlines,
   retry-safe breach notifications, ticket SLA indicators, and operational reporting.
+- HMAC-SHA256 inbound signatures, encrypted one-time credentials, contact-bound
+  sources, atomic idempotent webhook receipts, and integration provenance in ticket history.
 - Exact Python dependency pins with hash locks and npm package lock.
 - Local Docker Compose startup ordering and GitHub Actions validation.
 
@@ -88,6 +92,14 @@ Beat worker scans once per minute, and the alert appears in Staff notifications 
 scan. The same page shows the current-month operational report. Exact metric cohorts and
 late/reopen rules are in [docs/sla.md](docs/sla.md).
 Changing POSTGRES_* credentials does not reinitialize an existing database volume.
+
+## Demonstrate M6
+
+Create a customer contact, open **Integrations**, and create a source bound to that
+contact. Save its one-time credential and follow the [signed webhook guide](docs/integrations.md)
+to create a ticket and append a public message. The source can only act for that contact;
+receipts show event IDs and outcomes without retaining raw payloads. Rotate or revoke the
+credential to verify immediate invalidation. Agents cannot manage signing keys.
 
 All published ports bind to 127.0.0.1. The frontend uses Vite's development server and
 proxies `/api` to FastAPI: no broad CORS policy is needed. This Compose file is for
@@ -219,8 +231,8 @@ npm.cmd run test:e2e
 ```
 
 Use `$env:PLAYWRIGHT_CHANNEL = 'chrome'` to use an installed Chrome browser instead.
-Desktop and mobile projects cover both staff and customer ticket workflows and create
-synthetic accounts. Prefer a disposable test stack;
+Desktop and mobile projects cover staff, customer, and signed integration workflows and
+create synthetic accounts. Prefer a disposable test stack;
 they intentionally leave those demo accounts for inspection. Never target a production URL.
 
 Docker-only backend unit test alternative, from root:

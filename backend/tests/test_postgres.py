@@ -22,7 +22,7 @@ def test_migration_upgrade_downgrade_and_readiness(postgres):
         command.upgrade(alembic, "head")
         assert client.get("/api/health/ready").status_code == 200
     with database.engine.connect() as connection:
-        assert MigrationContext.configure(connection).get_current_heads() == ("0005_sla",)
+        assert MigrationContext.configure(connection).get_current_heads() == ("0006_integrations",)
     assert set(inspect(database.engine).get_table_names()) == {
         "alembic_version",
         "users",
@@ -44,6 +44,8 @@ def test_migration_upgrade_downgrade_and_readiness(postgres):
         "sla_policies",
         "sla_policy_versions",
         "ticket_slas",
+        "integration_sources",
+        "webhook_receipts",
     }
     command.check(alembic)
 
@@ -58,6 +60,17 @@ def test_m5_additive_upgrade_from_m4(postgres):
     tables = set(inspect(database.engine).get_table_names())
     assert {"tickets", "customer_access", "outbox_events"} <= tables
     assert {"sla_policies", "sla_policy_versions", "ticket_slas"} <= tables
+
+
+def test_m6_upgrade_from_m5_is_additive(postgres):
+    _, database, alembic = postgres
+    command.downgrade(alembic, "0005_sla")
+    tables = set(inspect(database.engine).get_table_names())
+    assert {"tickets", "ticket_slas", "outbox_events"} <= tables
+    assert not {"integration_sources", "webhook_receipts"} & tables
+    command.upgrade(alembic, "head")
+    tables = set(inspect(database.engine).get_table_names())
+    assert {"integration_sources", "webhook_receipts", "tickets", "ticket_slas"} <= tables
 
 
 def test_failed_transaction_rolls_back_all_writes(postgres):

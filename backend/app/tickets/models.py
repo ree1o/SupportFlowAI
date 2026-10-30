@@ -111,12 +111,18 @@ class Ticket(Base):
             ["customer_access.organization_id", "customer_access.id"],
             name="fk_tickets_creator_customer",
         ),
+        ForeignKeyConstraint(
+            ["organization_id", "created_by_integration_source_id"],
+            ["integration_sources.organization_id", "integration_sources.id"],
+            name="fk_tickets_creator_integration",
+        ),
         CheckConstraint("status IN ('open', 'pending', 'resolved', 'closed')", name="valid_status"),
         CheckConstraint("priority IN ('low', 'normal', 'high', 'urgent')", name="valid_priority"),
         CheckConstraint("version >= 1", name="positive_version"),
         CheckConstraint("char_length(btrim(title)) > 0", name="nonempty_title"),
         CheckConstraint(
-            "(created_by_membership_id IS NOT NULL) <> (created_by_customer_access_id IS NOT NULL)",
+            "num_nonnulls(created_by_membership_id, created_by_customer_access_id, "
+            "created_by_integration_source_id) = 1",
             name="single_creator",
         ),
         CheckConstraint(
@@ -148,6 +154,7 @@ class Ticket(Base):
     assigned_membership_id: Mapped[UUID | None]
     created_by_membership_id: Mapped[UUID | None]
     created_by_customer_access_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    created_by_integration_source_id: Mapped[UUID | None] = mapped_column(nullable=True)
     title: Mapped[str] = mapped_column(String(200))
     status: Mapped[str] = mapped_column(String(20), default=Status.OPEN)
     priority: Mapped[str] = mapped_column(String(10), default=Priority.NORMAL)
@@ -182,11 +189,17 @@ class Message(Base):
             ["memberships.organization_id", "memberships.id"],
             name="fk_messages_author",
         ),
+        ForeignKeyConstraint(
+            ["organization_id", "author_integration_source_id"],
+            ["integration_sources.organization_id", "integration_sources.id"],
+            name="fk_messages_integration_author",
+        ),
         CheckConstraint("visibility IN ('public', 'internal')", name="valid_visibility"),
         CheckConstraint("char_length(btrim(body)) BETWEEN 1 AND 10000", name="valid_body"),
         CheckConstraint("ticket_version >= 1", name="positive_version"),
         CheckConstraint(
-            "(author_membership_id IS NOT NULL) <> (author_customer_access_id IS NOT NULL)",
+            "num_nonnulls(author_membership_id, author_customer_access_id, "
+            "author_integration_source_id) = 1",
             name="single_author",
         ),
         CheckConstraint(
@@ -206,6 +219,7 @@ class Message(Base):
     ticket_id: Mapped[UUID]
     author_membership_id: Mapped[UUID | None]
     author_customer_access_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    author_integration_source_id: Mapped[UUID | None] = mapped_column(nullable=True)
     author_name: Mapped[str] = mapped_column(String(100))
     visibility: Mapped[str] = mapped_column(String(10))
     body: Mapped[str] = mapped_column(Text)
@@ -232,6 +246,11 @@ class AuditEvent(Base):
             name="fk_audit_actor",
         ),
         ForeignKeyConstraint(
+            ["organization_id", "actor_integration_source_id"],
+            ["integration_sources.organization_id", "integration_sources.id"],
+            name="fk_audit_integration_actor",
+        ),
+        ForeignKeyConstraint(
             ["organization_id", "ticket_id", "message_id"],
             ["messages.organization_id", "messages.ticket_id", "messages.id"],
             name="fk_audit_message",
@@ -245,7 +264,8 @@ class AuditEvent(Base):
         ),
         CheckConstraint("ticket_version >= 1 AND sequence >= 0", name="valid_order"),
         CheckConstraint(
-            "(actor_membership_id IS NOT NULL) <> (actor_customer_access_id IS NOT NULL)",
+            "num_nonnulls(actor_membership_id, actor_customer_access_id, "
+            "actor_integration_source_id) = 1",
             name="single_actor",
         ),
         CheckConstraint(
@@ -261,6 +281,7 @@ class AuditEvent(Base):
     message_id: Mapped[UUID | None]
     actor_membership_id: Mapped[UUID | None]
     actor_customer_access_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    actor_integration_source_id: Mapped[UUID | None] = mapped_column(nullable=True)
     actor_name: Mapped[str] = mapped_column(String(100))
     action: Mapped[str] = mapped_column(String(40))
     changes: Mapped[dict[str, Any]] = mapped_column(JSONB)

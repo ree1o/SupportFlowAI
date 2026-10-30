@@ -779,6 +779,11 @@ textarea {
 .sla-state { width: fit-content; border-radius: 999px; padding: 3px 9px; font-size: .85rem; text-transform: capitalize; background: #29374b; }
 .staff-notices { padding-left: 0; list-style: none; }
 .staff-notices li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid #334257; }
+.integration-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.integration-actions button { white-space: nowrap; }
+.credential-panel { border-color: #397964; }
+.credential-panel input { font-family: ui-monospace, monospace; }
+.danger-text { color: #ffb9b9; }
 .sla-breached .sla-state { background: #682f38; color: #ffd6da; }
 .sla-approaching .sla-state { background: #62502b; color: #ffe9b0; }
 .sla-met .sla-state { background: #1c5848; color: #bdffe8; }
@@ -788,6 +793,7 @@ textarea {
   .sla-form th, .sla-form td { padding: 6px 4px; }
   .sla-form input[type="number"] { width: 80px; }
   .sla-ticket-panel h2 { display: grid; }
+  .integration-actions { min-width: 230px; }
 }
 .notification-row {
   border-bottom: 1px solid #334257;

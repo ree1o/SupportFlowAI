@@ -137,3 +137,16 @@ Updated: API composition/error details, identity organization-lock helper, Alemb
 registration, PostgreSQL migration expectations, frontend entry/API/styles, preserved M2
 browser navigation expectations, CI browser-step description, README/design/roadmap and
 the AGENTS.md milestone boundary. No dependencies or Compose services were added.
+
+## M6 additions
+
+- `backend/app/integrations/{models,schemas,service,api}.py` - organization-owned
+  contact-bound sources, encrypted signing keys, HMAC verification and receipt history.
+- `backend/migrations/versions/0006_inbound_integrations.py` - source/receipt tables,
+  tenant foreign keys, actor provenance and event uniqueness.
+- `backend/tests/test_integrations.py` - signed delivery, retries, concurrent duplicates,
+  role/tenant checks, source lifecycle, notifications, SLA snapshots and public-only behavior.
+- `frontend/src/support/Integrations.tsx` - source management and recent receipt interface.
+- `frontend/e2e/integrations.spec.ts` - signed source-to-ticket browser journey on desktop/mobile.
+- `docs/integrations.md` - signature protocol, payload contract and runnable Python sender.
+- Updated ticket/data model, architecture, roadmap, README, Alembic registration and CI-covered tests.

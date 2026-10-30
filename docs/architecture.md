@@ -1,10 +1,11 @@
-# Architecture — approved direction, M5 implementation boundary
+# Architecture — approved direction, M6 implementation boundary
 
 Status: approved direction with release adjustments, 2026-10-28.
 This document distinguishes intended architecture from implemented functionality.
-M1–M5 are implemented. See [identity design](identity.md), [ticket design](tickets.md),
+M1–M6 are implemented. See [identity design](identity.md), [ticket design](tickets.md),
 and [customer portal design](customer-portal.md) for current endpoints, permissions,
 security, transaction rules and limitations. SLA semantics are documented in [sla.md](sla.md);
+inbound signatures and receipts are documented in [integrations.md](integrations.md).
 Incident Radar, retrieval and AI remain later work.
 
 ## Product and scope
@@ -39,7 +40,7 @@ Async network I/O may later benefit bounded outgoing delivery batches. Blocking 
 operations use synchronous routes and must not be placed directly on the event loop.
 CPU-heavy embeddings run in workers, not API requests.
 
-## Current M4 deployment
+## Current M6 deployment
 
 ```mermaid
 flowchart LR
@@ -76,6 +77,14 @@ flowchart TB
     Retrieval --> DB
     Workers -.-> LLM[Optional generation provider in 1.1]
 ```
+
+Inbound webhook verification is an API boundary in the same modular monolith. It verifies
+timestamped HMAC-SHA256 over the event ID and raw body, then commits the receipt together
+with ticket/message, audit, optional SLA snapshot and notification outbox records. The
+source supplies its organization and one explicitly mapped contact; webhook payloads
+cannot choose a tenant, requester, staff actor, assignment or internal-note visibility.
+The per-source event uniqueness constraint is the concurrency authority, not an in-memory
+deduplication cache. Signing credentials are encrypted using the existing Fernet key.
 
 Modules are introduced when a feature needs them: identity/tenancy, tickets, customer
 access/notifications, SLA, incidents, knowledge, AI assistance, reporting.

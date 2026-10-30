@@ -1,6 +1,6 @@
 # Incremental release roadmap
 
-Approved scope, 2026-10-30. M1-M4 are complete; M5 requires separate approval.
+Approved scope, 2026-10-30. M1-M6 are complete; the next milestone requires separate approval.
 Each release has a self-contained demonstration. Completion never authorizes the next
 milestone. Complexity estimates are relative, not delivery-date commitments.
 
@@ -19,7 +19,7 @@ frontend, and PostgreSQL.
 - Evidence: [identity design](identity.md), [ticket design](tickets.md), and the
   [M3 verification record](m3-verification.md).
 
-## Release 0.2 - Reliable Backend (M4-M5)
+## Release 0.2 - Reliable Backend (M4-M6)
 
 ### M4: Customer portal and durable background processing (L; completed)
 
@@ -44,6 +44,19 @@ recovered. Prove that internal notes never reach customer responses.
 - Define precise time semantics and demonstrate deadlines at boundaries.
 - Inbound webhooks are a separate future decision.
 - Completed: [SLA semantics and metric definitions](sla.md).
+
+### M6: Secure inbound integrations and webhooks (L; completed)
+
+Independent demo: an Owner creates a source bound to one customer contact; a signed,
+retryable event creates a ticket; duplicate delivery returns the same result; changing
+the payload under the same event ID is rejected; source revocation stops further use.
+
+- HMAC-SHA256 signatures over timestamp, event ID and raw JSON bytes with five-minute tolerance.
+- Encrypted one-time credentials, versioned rotation, disable and terminal revoke.
+- PostgreSQL unique receipts committed atomically with ticket/message, audit, optional SLA
+  snapshot and notification outbox records. Explicit integration provenance; public messages only.
+- Receipt metadata omits raw payload, signature and credential.
+- Details and sender example: [inbound integration guide](integrations.md).
 
 ## Release 0.3 - Incident Radar (L; later)
 
@@ -83,7 +96,7 @@ with verifiable citations; disabled/unavailable providers leave manual workflows
 
 ## Scope guardrails
 
-Critical path: M1 -> M2 -> M3 -> M4 customer portal/durable work -> M5 SLA -> M7
+Critical path: M1 -> M2 -> M3 -> M4 customer portal/durable work -> M5 SLA -> M6 integrations -> M7
 Incident Radar -> M9 hardening -> M10 AI Copilot. Milestone identifiers may include
 separate integration/retrieval releases. Only explicitly approved scope may be built.
 

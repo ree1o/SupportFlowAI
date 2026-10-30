@@ -2,7 +2,8 @@
 
 M1 creates only the Alembic version table. M2 migration `0002_identity` adds users,
 sessions, organizations and memberships. M3 migration `0003_tickets` adds contacts,
-categories, tickets, messages and audit_events. Later-release tables below remain designs.
+categories, tickets, messages and audit_events. M4-M6 add customer access/jobs, SLA,
+and integrations as described below. Incident and AI tables remain designs.
 See [identity design](identity.md) and [ticket design](tickets.md) for implemented
 constraints, transactions, indexes and the current ER diagram.
 
@@ -10,7 +11,9 @@ constraints, transactions, indexes and the current ER diagram.
 | --- | --- |
 | 0.1 / M2 | users, sessions, organizations, memberships; fixed Owner/Administrator/Agent roles |
 | 0.1 / M3 | contacts, tickets, messages, categories, audit_events |
-| 0.2 | customer_access, invitations, account_tokens, notifications, outbox_events, job_runs, sla_policies, ticket_sla, integration_sources, webhook_receipts |
+| 0.2 / M4 | customer_access, invitations, account_tokens, notifications, outbox_events, background_jobs, email_deliveries |
+| 0.2 / M5 | sla_policies, sla_policy_versions, ticket_slas |
+| 0.2 / M6 | integration_sources, webhook_receipts; integration actor references on tickets, messages and audit_events |
 | 0.3 | incidents, incident_tickets, incident_proposals, proposal_tickets, detection_runs, ticket_embeddings |
 | 1.1 | knowledge_articles, article_revisions, knowledge_chunks, ai_runs, ai_suggestions, suggestion_feedback |
 

@@ -845,6 +845,76 @@ def staff_reply_notifications(
     )
 
 
+def integration_reply_notifications(db: Session, ticket: Ticket, message: Message, now) -> None:
+    """Notify the active support team about a public message received by integration."""
+    event_key = f"integration-reply:{message.id}"
+    recipients = db.execute(
+        select(User.id, User.email)
+        .join(Membership, Membership.user_id == User.id)
+        .where(
+            Membership.organization_id == ticket.organization_id,
+            Membership.is_active.is_(True),
+            User.is_active.is_(True),
+        )
+    )
+    for user_id, email in recipients:
+        db.add(
+            Notification(
+                user_id=user_id,
+                organization_id=ticket.organization_id,
+                ticket_id=ticket.id,
+                audience="staff",
+                event_key=event_key,
+                title=f"Customer replied to {ticket.title}"[:160],
+                created_at=now,
+            )
+        )
+        add_email(
+            db,
+            f"{event_key}:{user_id}",
+            "email",
+            email,
+            f"Customer replied: {ticket.title}",
+            "A customer replied to a support request. Sign in to view the conversation.",
+            ticket.organization_id,
+        )
+
+
+def integration_ticket_notifications(db: Session, ticket: Ticket, now, settings: Settings) -> None:
+    """Notify active staff of a newly committed ticket received from an integration."""
+    event_key = f"integration-ticket:{ticket.id}"
+    recipients = db.execute(
+        select(User.id, User.email)
+        .join(Membership, Membership.user_id == User.id)
+        .where(
+            Membership.organization_id == ticket.organization_id,
+            Membership.is_active.is_(True),
+            User.is_active.is_(True),
+        )
+    )
+    for user_id, email in recipients:
+        db.add(
+            Notification(
+                user_id=user_id,
+                organization_id=ticket.organization_id,
+                ticket_id=ticket.id,
+                audience="staff",
+                event_key=event_key,
+                title=f"New ticket received: {ticket.title}"[:160],
+                created_at=now,
+            )
+        )
+        add_email(
+            db,
+            f"{event_key}:{user_id}",
+            "email",
+            email,
+            f"New support ticket: {ticket.title}",
+            "A customer request was received. Sign in to view and respond.",
+            ticket.organization_id,
+        )
+
+
 def notifications(db: Session, auth: AuthContext, unread_only: bool):
     org_ids = [row[1].id for row in active_access(db, auth)]
     if not org_ids:

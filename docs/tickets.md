@@ -249,7 +249,7 @@ customer access API**. Customer access uses separate M4 endpoints and schemas; t
 messages/activity APIs remain staff-only. See [customer portal design](customer-portal.md).
 
 Every successful create/change/message transaction writes audit records with scoped
-actor membership, display-name snapshot, action, ticket target, timestamp and safe
+staff membership, customer access, or integration source actor, display-name snapshot, action, ticket target, timestamp and safe
 metadata. Message events also identify the message target. Metadata holds field from/to
 values or message/reference IDs and visibility, not body text, passwords, session tokens
 or credentials. Multi-field edits share a version and have ordered sequence numbers.
@@ -278,4 +278,15 @@ ticket deletion/title/requester editing, tags, bulk actions, polling/live update
 SLA, incidents, retrieval or AI. Categories/members are simple lists;
 large-tenant lookup scaling is deferred. Lists are not snapshot-consistent across pages.
 No performance benchmark or public production security claim is made. Use synthetic data
-with the loopback-only HTTP Compose setup. M5 requires explicit approval.
+with the loopback-only HTTP Compose setup. Later milestone work requires explicit
+approval; see the current [release roadmap](roadmap.md).
+
+## M6 inbound integration provenance
+
+M6 adds `created_by_integration_source_id` to tickets and corresponding integration
+actor references to messages and audit events. The database checks require exactly one
+staff, customer, or integration actor. Integration messages are public-only and the
+staff conversation/activity projection exposes the source ID and display label. A
+source is tenant-bound to one contact; a message request is accepted only when both
+the ticket organization and requester contact match that source. See
+[the signed inbound integration contract](integrations.md).

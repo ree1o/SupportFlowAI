@@ -17,6 +17,7 @@ export function Sidebar({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   if (!current) return null;
+  const selected = current.organizations.find((org) => org.id === current.selected_organization_id);
   async function act(action: () => Promise<void>) {
     setPending(true);
     setError("");
@@ -73,6 +74,7 @@ export function Sidebar({
         <NavLink to="/app/contacts">Contacts</NavLink>
         <NavLink to="/app/categories">Categories</NavLink>
         <NavLink to="/app/operations">SLA & operations</NavLink>
+        {selected && selected.role !== "agent" && <NavLink to="/app/integrations">Integrations</NavLink>}
         <NavLink to="/app" end>
           Organization & team
         </NavLink>
