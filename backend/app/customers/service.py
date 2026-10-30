@@ -32,6 +32,7 @@ from app.identity import security
 from app.identity.models import AuthSession, Membership, Organization, Role, User
 from app.identity.schemas import normalize_email
 from app.identity.service import AuthContext, issue_session, organization_context, transaction
+from app.sla.service import snapshot_ticket
 from app.tickets.models import AuditEvent, Contact, Message, Priority, Status, Ticket, Visibility
 
 TOKEN_TTL = timedelta(hours=1)
@@ -615,6 +616,7 @@ def create_ticket(db: Session, auth: AuthContext, org: UUID, data: CustomerTicke
         )
         db.add(ticket)
         db.flush()
+        snapshot_ticket(db, ticket, now)
         message = Message(
             organization_id=org,
             ticket_id=ticket.id,

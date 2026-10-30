@@ -35,6 +35,16 @@ export type Ticket = {
   can_reply: boolean;
   can_note: boolean;
   can_assign_others: boolean;
+  sla: {
+    policy_version: number;
+    snapshot_priority: string;
+    response_due_at: string;
+    resolution_due_at: string;
+    response_target_seconds: number;
+    resolution_target_seconds: number;
+    response_status: string;
+    resolution_status: string;
+  } | null;
 };
 export type Page<T> = {
   items: T[];

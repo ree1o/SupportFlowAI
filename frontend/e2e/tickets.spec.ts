@@ -84,6 +84,15 @@ test("staff intake, assignment, distinct conversations, audit, filtering, and te
   page,
 }) => {
   await desk(page);
+  await page.getByRole("link", { name: "SLA & operations", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "SLA policy" })).toBeVisible();
+  for (const priority of ["low", "normal", "high", "urgent"])
+    for (const target of ["response", "resolution"])
+      await page.getByLabel(`${priority} ${target} minutes`).fill("120");
+  await page.getByRole("button", { name: "Create policy", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save policy", exact: true })).toBeVisible();
+  await expect(page.getByText("Currently overdue", { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Tickets", exact: true }).click();
   await page.getByRole("link", { name: "Categories", exact: true }).click();
   await page.getByLabel("Category name", { exact: true }).fill("Payments");
   await page
@@ -91,6 +100,8 @@ test("staff intake, assignment, distinct conversations, audit, filtering, and te
     .click();
   await expect(page.getByLabel("Category name for Payments")).toBeVisible();
   await ticket(page, "Customer cannot complete checkout");
+  await expect(page.getByRole("region", { name: "SLA deadlines" })).toBeVisible();
+  await expect(page.getByText("First human response", { exact: true })).toBeVisible();
   await page.getByLabel("Ticket assignee").selectOption({ index: 1 });
   await expect(
     page.getByText("assignment changed", { exact: true }),

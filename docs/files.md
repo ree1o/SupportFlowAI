@@ -90,6 +90,19 @@ frontend entry/layout/styles/package lock, Compose local cookie configuration,
 architecture/data-model/roadmap documents and the milestone boundary in AGENTS.md.
 Real `.env`, local database URLs, dependency folders and screenshots remain ignored.
 
+## M5 additions
+
+- `backend/app/sla/{models,schemas,service,api}.py` - organization policies, immutable
+  versions, ticket target snapshots, deadline scans, escalation, and aggregate reports.
+- `backend/migrations/versions/0005_sla_reporting.py` - additive SLA policy, version,
+  and ticket snapshot schema with tenant constraints and scan indexes.
+- `backend/tests/test_tickets.py` and `backend/tests/test_postgres.py` - SLA boundaries,
+  policy authorization, snapshot stability, idempotent scanning, report definitions, and
+  migration-head verification.
+- `frontend/src/support/Operations.tsx` - SLA administration, operational metrics, and
+  staff breach notifications.
+- `docs/sla.md` - deadline semantics, metric definitions, escalation, and endpoints.
+
 ## M4 additions
 
 - `backend/app/customers/{models,schemas,service,api}.py` - explicit customer grants,

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -10,6 +10,8 @@ from app.errors import AppError
 from app.identity.models import Membership, Role, User
 from app.identity.security import utcnow
 from app.identity.service import AuthContext, organization_context, transaction
+from app.sla.models import TicketSla
+from app.sla.service import present_sla, record_completion, snapshot_ticket
 from app.tickets.models import (
     AuditEvent,
     Category,
@@ -198,7 +200,7 @@ def transitions(ticket: Ticket, actor: Membership) -> list[Status]:
 def ticket_query(org: UUID):
     # Joined projections avoid a per-ticket contact/category/assignee query loop.
     return (
-        select(Ticket, Contact, Category, Membership, User)
+        select(Ticket, Contact, Category, Membership, User, TicketSla)
         .join(
             Contact,
             and_(
@@ -221,15 +223,23 @@ def ticket_query(org: UUID):
             ),
         )
         .outerjoin(User, User.id == Membership.user_id)
+        .outerjoin(
+            TicketSla,
+            and_(
+                TicketSla.organization_id == Ticket.organization_id,
+                TicketSla.ticket_id == Ticket.id,
+            ),
+        )
         .where(Ticket.organization_id == org)
     )
 
 
 def view(row: Any, actor: Membership) -> TicketView:
-    ticket, requester, category, assignee, user = row
+    ticket, requester, category, assignee, user, sla = row
     can_work = workable(ticket, actor)
     return TicketView(
         **TicketRecord.model_validate(ticket).model_dump(),
+        sla=present_sla(sla, ticket),
         requester_name=requester.name,
         requester_email=requester.email,
         category_name=category.name if category else None,
@@ -266,6 +276,7 @@ def tickets(
     sort: TicketSort,
     page: int,
     size: int,
+    sla_status: str | None = None,
 ) -> TicketPage:
     actor = context(db, auth, org)
     query = ticket_query(org)
@@ -288,6 +299,31 @@ def tickets(
             query = query.where(column == value)
     if unassigned:
         query = query.where(Ticket.assigned_membership_id.is_(None))
+    if sla_status == "none":
+        query = query.where(TicketSla.id.is_(None))
+    elif sla_status == "overdue":
+        now = utcnow()
+        query = query.where(
+            TicketSla.id.is_not(None),
+            or_(
+                (Ticket.first_response_at.is_(None)) & (TicketSla.response_due_at < now),
+                (Ticket.first_resolved_at.is_(None)) & (TicketSla.resolution_due_at < now),
+            ),
+        )
+    elif sla_status == "approaching":
+        now = utcnow()
+        soon = now + timedelta(hours=1)
+        query = query.where(
+            TicketSla.id.is_not(None),
+            or_(
+                (Ticket.first_response_at.is_(None))
+                & (TicketSla.response_due_at >= now)
+                & (TicketSla.response_due_at <= soon),
+                (Ticket.first_resolved_at.is_(None))
+                & (TicketSla.resolution_due_at >= now)
+                & (TicketSla.resolution_due_at <= soon),
+            ),
+        )
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     if sort == "priority_desc":
         rank = case(
@@ -413,6 +449,7 @@ def create_ticket(db: Session, auth: AuthContext, org: UUID, data: TicketCreate)
         )
         db.add(record)
         db.flush()
+        snapshot_ticket(db, record, now)
         message = Message(
             organization_id=org,
             ticket_id=record.id,
@@ -522,6 +559,8 @@ def update_ticket(
                     now,
                     sequence,
                 )
+            if changes.get("status") == Status.RESOLVED:
+                record_completion(db, record, "resolution", now)
             db.flush()
         result = view(db.execute(ticket_query(org).where(Ticket.id == id)).one(), actor)
     return result
@@ -550,6 +589,7 @@ def post_message(
         record.updated_at = now
         if visibility == Visibility.PUBLIC:
             record.first_response_at = record.first_response_at or now
+            record_completion(db, record, "response", now)
         message = Message(
             organization_id=org,
             ticket_id=id,

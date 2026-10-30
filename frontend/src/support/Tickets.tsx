@@ -97,6 +97,15 @@ export function TicketQueue({ org }: { org: Organization }) {
           </select>
         </label>
         <label>
+          SLA status
+          <select name="sla_status" defaultValue={params.get("sla_status") ?? ""}>
+            <option value="">All SLA states</option>
+            <option value="overdue">Overdue</option>
+            <option value="approaching">Due within one hour</option>
+            <option value="none">No SLA snapshot</option>
+          </select>
+        </label>
+        <label>
           Category
           <select
             name="category_id"
@@ -497,6 +506,15 @@ export function TicketDetail({ org }: { org: Organization }) {
           </button>
         </div>
       )}
+      {ticket.sla && (
+        <section className="panel sla-ticket-panel" aria-label="SLA deadlines">
+          <h2>SLA deadlines <span className="muted">Policy version {ticket.sla.policy_version} · {ticket.sla.snapshot_priority} snapshot</span></h2>
+          <div className="sla-deadlines">
+            <SlaDeadline label="First human response" due={ticket.sla.response_due_at} status={ticket.sla.response_status} />
+            <SlaDeadline label="First resolution" due={ticket.sla.resolution_due_at} status={ticket.sla.resolution_status} />
+          </div>
+        </section>
+      )}
       <div className="ticket-layout">
         <div className="conversation-column">
           <section className="panel">
@@ -787,6 +805,16 @@ export function TicketDetail({ org }: { org: Organization }) {
         </aside>
       </div>
     </>
+  );
+}
+
+function SlaDeadline({ label, due, status }: { label: string; due: string; status: string }) {
+  return (
+    <div className={`sla-deadline sla-${status}`}>
+      <strong>{label}</strong>
+      <span className="sla-state">{status.replaceAll("_", " ")}</span>
+      <time dateTime={due}>{date(due)}</time>
+    </div>
   );
 }
 

@@ -14,6 +14,8 @@ from app.identity.models import Membership, Organization
 from app.identity.security import SESSION_COOKIE, token_hash, utcnow
 from app.identity.service import authenticate
 from app.main import create_app
+from app.sla.models import TicketSla
+from app.sla.service import _status, scan_deadlines
 from app.tickets import service
 from app.tickets.models import AuditEvent, Category, Contact, Message, Ticket
 from app.tickets.schemas import CategoryCreate, TicketCreate, TicketUpdate
@@ -110,6 +112,226 @@ def edit(desk, ticket, client="owner", **fields):
             **fields,
         },
     )
+
+
+def sla_targets(**overrides):
+    values = {
+        f"{priority}_{kind}_seconds": seconds
+        for priority in ["low", "normal", "high", "urgent"]
+        for kind, seconds in [("response", 3600), ("resolution", 86400)]
+    }
+    return {**values, **overrides}
+
+
+def test_sla_policy_roles_snapshot_and_priority_history(desk):
+    owner, agent, outsider = [desk["clients"][key] for key in ["owner", "agent", "outsider"]]
+    path = f"{desk['root']}/sla/policy"
+    body = {"name": "Support targets", "active": True, **sla_targets(high_response_seconds=120)}
+    created = write(owner, "PUT", path, body)
+    assert created.status_code == 200, created.text
+    assert created.json()["current_version"] == 1
+    assert created.json()["targets"]["high_response_seconds"] == 120
+    assert write(agent, "PUT", path, body).status_code == 403
+    assert outsider.get(f"/api{path}").status_code == 404
+
+    ticket_response = create_ticket(desk, priority="high")
+    assert ticket_response.status_code == 201, ticket_response.text
+    ticket = ticket_response.json()
+    assert ticket["sla"]["policy_version"] == 1
+    assert ticket["sla"]["snapshot_priority"] == "high"
+    assert ticket["sla"]["response_target_seconds"] == 120
+
+    changed = write(
+        owner,
+        "PUT",
+        path,
+        {
+            "name": "Support targets",
+            "active": True,
+            "expected_version": 1,
+            **sla_targets(high_response_seconds=240),
+        },
+    )
+    assert changed.status_code == 200, changed.text
+    assert changed.json()["current_version"] == 2
+    assert changed.json()["targets"]["high_response_seconds"] == 240
+    assert (
+        owner.get(f"/api{desk['root']}/tickets/{ticket['id']}").json()["sla"][
+            "response_target_seconds"
+        ]
+        == 120
+    )
+    assert write(owner, "PUT", path, body).status_code == 409
+    deactivated = write(
+        owner,
+        "PUT",
+        path,
+        {
+            "name": changed.json()["name"],
+            "active": False,
+            "expected_version": 2,
+            **changed.json()["targets"],
+        },
+    )
+    assert deactivated.status_code == 200, deactivated.text
+    assert deactivated.json()["current_version"] == 3
+    assert (
+        owner.get(f"/api{desk['root']}/tickets/{ticket['id']}").json()["sla"]["policy_version"] == 1
+    )
+    future_ticket = create_ticket(desk)
+    assert future_ticket.status_code == 201, future_ticket.text
+    assert future_ticket.json()["sla"] is None
+
+
+def test_sla_deadline_equality_and_overdue_state():
+    from datetime import UTC, datetime, timedelta
+
+    due = datetime(2026, 1, 1, tzinfo=UTC)
+    assert _status(due, due, None, due) == "met"
+    assert _status(due, None, None, due) == "approaching"
+    assert _status(due, None, None, due + timedelta(microseconds=1)) == "breached"
+    assert _status(due, due + timedelta(microseconds=1), due, due) == "breached"
+
+
+def test_sla_scan_is_idempotent_and_does_not_invent_legacy_snapshots(desk):
+    from datetime import timedelta
+
+    from app.identity.security import utcnow
+
+    owner = desk["clients"]["owner"]
+    legacy_ticket = create_ticket(desk).json()
+    path = f"{desk['root']}/sla/policy"
+    body = {"name": "Fast", "active": True, **sla_targets()}
+    assert write(owner, "PUT", path, body).status_code == 200
+    ticket = create_ticket(desk).json()
+    with desk["db"].session() as db:
+        record = db.scalar(select(TicketSla).where(TicketSla.ticket_id == UUID(ticket["id"])))
+        assert record is not None
+        record.response_due_at = utcnow() - timedelta(seconds=1)
+        db.commit()
+        assert scan_deadlines(db, utcnow()) == 1
+        db.commit()
+        assert scan_deadlines(db, utcnow()) == 0
+        db.commit()
+        assert (
+            db.scalar(
+                select(TicketSla.response_breached_at).where(
+                    TicketSla.ticket_id == UUID(ticket["id"])
+                )
+            )
+            is not None
+        )
+        from app.customers.models import Notification
+
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(Notification)
+                .where(Notification.event_key == f"sla-response:{ticket['id']}")
+            )
+            == 2  # active Owner and Administrator; unassigned Agents are not escalated
+        )
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(TicketSla)
+                .where(TicketSla.ticket_id == UUID(legacy_ticket["id"]))
+            )
+            == 0
+        )
+
+
+def test_concurrent_sla_scans_emit_one_breach(desk):
+    from concurrent.futures import ThreadPoolExecutor
+    from datetime import timedelta
+    from threading import Barrier
+
+    from app.identity.security import utcnow
+
+    owner = desk["clients"]["owner"]
+    path = f"{desk['root']}/sla/policy"
+    assert (
+        write(owner, "PUT", path, {"name": "Fast", "active": True, **sla_targets()}).status_code
+        == 200
+    )
+    ticket = create_ticket(desk).json()
+    with desk["db"].session() as db:
+        record = db.scalar(select(TicketSla).where(TicketSla.ticket_id == UUID(ticket["id"])))
+        assert record
+        record.response_due_at = utcnow() - timedelta(seconds=1)
+        db.commit()
+    barrier = Barrier(2)
+
+    def scan():
+        with desk["db"].session() as db:
+            barrier.wait()
+            result = scan_deadlines(db, utcnow())
+            db.commit()
+            return result
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: scan(), range(2)))
+    assert sum(results) == 1
+
+
+def test_existing_ticket_without_active_policy_has_no_sla_snapshot(desk):
+    ticket = create_ticket(desk)
+    assert ticket.status_code == 201, ticket.text
+    assert ticket.json()["sla"] is None
+
+
+def test_operational_report_uses_eligible_sla_denominators(desk):
+    from datetime import timedelta
+
+    from app.identity.security import utcnow
+
+    owner = desk["clients"]["owner"]
+    policy_path = f"{desk['root']}/sla/policy"
+    assert (
+        write(
+            owner, "PUT", policy_path, {"name": "Fast", "active": True, **sla_targets()}
+        ).status_code
+        == 200
+    )
+    answered = create_ticket(desk).json()
+    reply = write(
+        owner,
+        "POST",
+        f"{desk['root']}/tickets/{answered['id']}/replies",
+        {
+            "expected_version": answered["version"],
+            "body": "A human agent is investigating.",
+        },
+    )
+    assert reply.status_code == 201, reply.text
+    unanswered = create_ticket(desk, title="Unanswered request").json()
+    now = utcnow()
+    with desk["db"].session() as db:
+        answered_sla = db.scalar(
+            select(TicketSla).where(TicketSla.ticket_id == UUID(answered["id"]))
+        )
+        unanswered_sla = db.scalar(
+            select(TicketSla).where(TicketSla.ticket_id == UUID(unanswered["id"]))
+        )
+        assert answered_sla and unanswered_sla
+        answered_sla.response_due_at = now + timedelta(days=1)
+        answered_sla.resolution_due_at = now + timedelta(days=1)
+        unanswered_sla.response_due_at = now - timedelta(seconds=1)
+        unanswered_sla.resolution_due_at = now - timedelta(seconds=1)
+        db.commit()
+    report = owner.get(
+        f"/api{desk['root']}/reports/operations",
+        params={
+            "period_start": (now - timedelta(days=1)).isoformat(),
+            "period_end": (now + timedelta(days=1)).isoformat(),
+        },
+    )
+    assert report.status_code == 200, report.text
+    data = report.json()
+    assert data["tickets_created"] == 2
+    assert data["unresolved_tickets"] == 2
+    assert data["response_sla_compliance_rate"] == 0.5
+    assert data["resolution_sla_compliance_rate"] == 0.0
 
 
 def test_contacts_crud_search_archive_and_scoping(desk):

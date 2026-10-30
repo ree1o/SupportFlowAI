@@ -38,11 +38,12 @@ recovered. Prove that internal notes never reach customer responses.
 - Risk: SMTP may accept a message and then time out. Exactly-once email is impossible;
   delivery ambiguity is recorded and replays use stable event keys.
 
-### M5: SLA monitoring and reporting (L; not yet approved)
+### M5: SLA monitoring and reporting (L; completed)
 
 - Simple policy snapshots, response/resolution deadlines, overdue scans, and reporting.
 - Define precise time semantics and demonstrate deadlines at boundaries.
-- Requires explicit approval after M4. Inbound webhooks are a separate future decision.
+- Inbound webhooks are a separate future decision.
+- Completed: [SLA semantics and metric definitions](sla.md).
 
 ## Release 0.3 - Incident Radar (L; later)
 

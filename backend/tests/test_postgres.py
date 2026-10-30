@@ -22,7 +22,7 @@ def test_migration_upgrade_downgrade_and_readiness(postgres):
         command.upgrade(alembic, "head")
         assert client.get("/api/health/ready").status_code == 200
     with database.engine.connect() as connection:
-        assert MigrationContext.configure(connection).get_current_heads() == ("0004_m4",)
+        assert MigrationContext.configure(connection).get_current_heads() == ("0005_sla",)
     assert set(inspect(database.engine).get_table_names()) == {
         "alembic_version",
         "users",
@@ -41,8 +41,23 @@ def test_migration_upgrade_downgrade_and_readiness(postgres):
         "background_jobs",
         "notifications",
         "email_deliveries",
+        "sla_policies",
+        "sla_policy_versions",
+        "ticket_slas",
     }
     command.check(alembic)
+
+
+def test_m5_additive_upgrade_from_m4(postgres):
+    _, database, alembic = postgres
+    command.downgrade(alembic, "0004_m4")
+    tables = set(inspect(database.engine).get_table_names())
+    assert {"tickets", "customer_access", "outbox_events"} <= tables
+    assert not {"sla_policies", "sla_policy_versions", "ticket_slas"} & tables
+    command.upgrade(alembic, "head")
+    tables = set(inspect(database.engine).get_table_names())
+    assert {"tickets", "customer_access", "outbox_events"} <= tables
+    assert {"sla_policies", "sla_policy_versions", "ticket_slas"} <= tables
 
 
 def test_failed_transaction_rolls_back_all_writes(postgres):

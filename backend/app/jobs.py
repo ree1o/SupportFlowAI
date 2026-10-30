@@ -12,6 +12,7 @@ from app.customers.models import BackgroundJob, EmailDelivery, OutboxEvent
 from app.database import Database
 from app.identity import models as identity_models  # noqa: F401 -- load all FK targets in worker metadata
 from app.identity.security import utcnow
+from app.sla import models as sla_models  # noqa: F401 -- load M5 metadata in worker
 from app.tickets import models as ticket_models  # noqa: F401 -- load all FK targets in worker metadata
 
 logger = logging.getLogger("supportflow.jobs")
@@ -29,7 +30,11 @@ celery_app.conf.update(
         "poll-transactional-outbox": {
             "task": "supportflow.poll_outbox",
             "schedule": 10.0,
-        }
+        },
+        "scan-sla-deadlines": {
+            "task": "supportflow.scan_sla_deadlines",
+            "schedule": 60.0,
+        },
     },
 )
 
@@ -147,5 +152,28 @@ def poll_outbox() -> int:
                 break
             processed += 1
         return processed
+    finally:
+        database.dispose()
+
+
+@celery_app.task(
+    name="supportflow.scan_sla_deadlines",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True,
+    max_retries=5,
+)
+def scan_sla_deadlines() -> int:
+    from app.sla.service import scan_deadlines
+
+    database = Database(Settings())
+    try:
+        with database.session() as db:
+            count = scan_deadlines(db, batch_size=100)
+            db.commit()
+            return count
+    except Exception:
+        database.dispose()
+        raise
     finally:
         database.dispose()

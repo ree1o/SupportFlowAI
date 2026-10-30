@@ -21,6 +21,7 @@ from app.health import router
 from app.identity.api import router as identity_router
 from app.identity.security import clear_cookies
 from app.logging import configure_logging
+from app.sla.api import router as sla_router
 from app.tickets.api import router as tickets_router
 
 logger = logging.getLogger("supportflow.api")
@@ -122,4 +123,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(customer_access_router)
     app.include_router(customer_staff_router)
     app.include_router(tickets_router)
+    app.include_router(sla_router)
     return app

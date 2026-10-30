@@ -4,6 +4,7 @@ import { useAuth } from "../auth";
 import { Contacts } from "./Contacts";
 import { Categories } from "./Categories";
 import { TicketQueue, TicketCreate, TicketDetail } from "./Tickets";
+import { Operations } from "./Operations";
 
 export function SupportApp() {
   const { current } = useAuth();
@@ -21,6 +22,7 @@ export function SupportApp() {
             <Route path="tickets/:id" element={<TicketDetail org={org} />} />
             <Route path="contacts" element={<Contacts org={org} />} />
             <Route path="categories" element={<Categories org={org} />} />
+            <Route path="operations" element={<Operations org={org} />} />
             <Route path="*" element={<Navigate to="/app/tickets" replace />} />
           </Routes>
         ) : (

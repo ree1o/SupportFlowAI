@@ -1,4 +1,4 @@
-from typing import Annotated, cast
+from typing import Annotated, Literal, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Query, Request
@@ -110,6 +110,7 @@ def tickets(
     sort: TicketSort = "created_desc",
     page: Page = 1,
     page_size: Size = 20,
+    sla_status: Literal["overdue", "approaching", "none"] | None = None,
 ) -> TicketPage:
     return service.tickets(
         db,
@@ -125,6 +126,7 @@ def tickets(
         sort,
         page,
         page_size,
+        sla_status,
     )
 
 

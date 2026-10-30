@@ -1,10 +1,11 @@
-# Architecture — approved direction, M4 implementation boundary
+# Architecture — approved direction, M5 implementation boundary
 
 Status: approved direction with release adjustments, 2026-10-28.
 This document distinguishes intended architecture from implemented functionality.
-M1–M4 are implemented. See [identity design](identity.md), [ticket design](tickets.md),
+M1–M5 are implemented. See [identity design](identity.md), [ticket design](tickets.md),
 and [customer portal design](customer-portal.md) for current endpoints, permissions,
-security, transaction rules and limitations. SLA, incidents, retrieval and AI remain later work.
+security, transaction rules and limitations. SLA semantics are documented in [sla.md](sla.md);
+Incident Radar, retrieval and AI remain later work.
 
 ## Product and scope
 

@@ -44,7 +44,8 @@ The UI mirrors capabilities returned by the server; backend services enforce the
 
 Priorities: `low`, `normal` (default), `high`, `urgent`. Public staff replies create a
 customer notification/outbox event in the same transaction; SMTP delivery is asynchronous.
-Internal notes do not notify customers. SLA side effects are not implemented. Public replies require open/pending; notes require
+Internal notes do not notify customers. SLA response and resolution behavior is defined
+in [sla.md](sla.md). Public replies require open/pending; notes require
 open/pending/resolved and working permission. Replies never change status implicitly.
 Same-value PATCH on a nonclosed ticket checks its version but creates no audit/version.
 A closed ticket accepts only a manager's isolated `status=open` change.

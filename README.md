@@ -2,10 +2,10 @@
 
 Intelligent Customer Support & Incident Management Platform.
 
-**Current implementation: M4 - Customer Portal, Account Lifecycle, and Durable Background Processing.**
+**Current implementation: M5 - SLA Monitoring & Operational Reporting.**
 A working staff helpdesk extends the verified identity and application baseline.
 The staff helpdesk now supports customer self-service and recoverable asynchronous
-notifications. M5 (SLA monitoring/reporting) requires separate approval.
+notifications, SLA snapshots, deadline monitoring, staff breach alerts, and operational reports.
 
 ## Documentation
 
@@ -19,6 +19,7 @@ notifications. M5 (SLA monitoring/reporting) requires separate approval.
 - [Ticket API, workflow, permissions, tenant constraints and concurrency](docs/tickets.md)
 - [M3 verification results](docs/m3-verification.md)
 - [Customer portal, account lifecycle, and background processing](docs/customer-portal.md)
+- [SLA semantics, deadlines, metrics, and API](docs/sla.md)
 
 Basic authorization and tenant isolation are implemented. PostgreSQL RLS is deferred to 1.0.
 
@@ -37,6 +38,8 @@ Basic authorization and tenant isolation are implemented. PostgreSQL RLS is defe
 - Customer verification, invitation, recovery, contact-bound access, ticket portal and notifications.
 - PostgreSQL transactional outbox, Celery/Redis worker, local SMTP via Mailpit, retries and recovery.
 - Responsive staff queue, intake/detail, contact management and category settings.
+- Versioned organization SLA policies, immutable ticket target snapshots, UTC deadlines,
+  retry-safe breach notifications, ticket SLA indicators, and operational reporting.
 - Exact Python dependency pins with hash locks and npm package lock.
 - Local Docker Compose startup ordering and GitHub Actions validation.
 
@@ -74,6 +77,16 @@ docker compose down
 
 `down` preserves database data. `docker compose down --volumes` **deletes this project's
 database volume**; use only when intentionally resetting disposable local data.
+
+## Demonstrate M5
+
+Sign in as an organization Owner or Administrator, open **SLA & operations**, and set
+the four priority response/resolution targets in minutes. Create a ticket and inspect its
+policy version and deadline snapshot on the detail page. Agents can see the deadlines but
+cannot edit the policy. Set a target to one minute to demonstrate a breach; the Celery
+Beat worker scans once per minute, and the alert appears in Staff notifications after a
+scan. The same page shows the current-month operational report. Exact metric cohorts and
+late/reopen rules are in [docs/sla.md](docs/sla.md).
 Changing POSTGRES_* credentials does not reinitialize an existing database volume.
 
 All published ports bind to 127.0.0.1. The frontend uses Vite's development server and

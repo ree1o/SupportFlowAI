@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.identity.schemas import Input, normalize_email
+from app.sla.schemas import TicketSlaView
 from app.tickets.models import Priority, Status, Visibility
 
 Version = Annotated[int, Field(strict=True, ge=1)]
@@ -180,6 +181,7 @@ class TicketRecord(BaseModel):
 
 
 class TicketView(TicketRecord):
+    sla: TicketSlaView | None = None
     requester_name: str
     requester_email: str | None
     category_name: str | None
