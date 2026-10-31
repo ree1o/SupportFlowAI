@@ -150,3 +150,18 @@ the AGENTS.md milestone boundary. No dependencies or Compose services were added
 - `frontend/e2e/integrations.spec.ts` - signed source-to-ticket browser journey on desktop/mobile.
 - `docs/integrations.md` - signature protocol, payload contract and runnable Python sender.
 - Updated ticket/data model, architecture, roadmap, README, Alembic registration and CI-covered tests.
+
+## M7 additions
+
+- `backend/app/incidents/{models,schemas,correlation,service,api}.py` - tenant-scoped
+  incident lifecycle, deterministic lexical candidates, evidence, review, suppression,
+  and background run services.
+- `backend/migrations/versions/0007_incident_radar.py` - additive incident, activity,
+  detection run, proposal, and suppression schema with tenant constraints.
+- `backend/tests/test_incidents.py`, `test_incident_correlation.py`, and
+  `fixtures/radar_pairs.json` - workflow/security tests and a small labeled evaluation set.
+- `frontend/src/incidents/IncidentRadar.tsx` and `frontend/e2e/incidents.spec.ts` - staff
+  Radar and incident workflow, including browser coverage.
+- `docs/incident-radar.md` - lifecycle, permissions, detector, evaluation and demo guide.
+- Updated app/worker wiring, settings, Compose values, navigation, styling, README,
+  roadmap, architecture and PostgreSQL migration expectations.

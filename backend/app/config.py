@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     smtp_port: int = Field(default=1025, ge=1, le=65535)
     email_from: str = "support@supportflow.local"
     public_app_url: str = "http://localhost:5173"
+    radar_lookback_hours: int = Field(default=72, ge=1, le=720)
+    radar_pair_window_minutes: int = Field(default=360, ge=5, le=1440)
+    radar_similarity_threshold: float = Field(default=0.30, gt=0, le=1)
+    radar_min_shared_terms: int = Field(default=2, ge=2, le=5)
+    radar_max_tickets: int = Field(default=500, ge=10, le=2000)
+    radar_max_candidate_pairs: int = Field(default=50000, ge=1000, le=250000)
     token_encryption_key: SecretStr = SecretStr("MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=")
 
     @model_validator(mode="after")

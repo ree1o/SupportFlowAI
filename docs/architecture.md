@@ -1,12 +1,13 @@
-# Architecture — approved direction, M6 implementation boundary
+# Architecture — approved direction, M7 implementation boundary
 
-Status: approved direction with release adjustments, 2026-10-28.
+Status: approved direction with release adjustments, 2026-10-31.
 This document distinguishes intended architecture from implemented functionality.
-M1–M6 are implemented. See [identity design](identity.md), [ticket design](tickets.md),
+M1–M7 are implemented. See [identity design](identity.md), [ticket design](tickets.md),
 and [customer portal design](customer-portal.md) for current endpoints, permissions,
 security, transaction rules and limitations. SLA semantics are documented in [sla.md](sla.md);
-inbound signatures and receipts are documented in [integrations.md](integrations.md).
-Incident Radar, retrieval and AI remain later work.
+inbound signatures and receipts are documented in [integrations.md](integrations.md),
+and incidents in [incident-radar.md](incident-radar.md). Semantic retrieval and AI remain
+later work.
 
 ## Product and scope
 
@@ -31,7 +32,8 @@ English demo data, one region, modest volumes, and one developer are initial ass
 | RLS | Defense in depth in release 1.0. Not a substitute for application authorization. Separate migration/runtime privileges then. |
 | Queue (0.2) | Celery + Redis dispatch PostgreSQL outbox jobs; outbox and job rows remain authoritative and recoverable. |
 | Frontend | React + TypeScript + Vite. Same-origin `/api` proxy; polling before SSE/WebSockets. |
-| Retrieval (0.3) | Lexical baseline, then local embeddings and pgvector, evaluated on held-out cases. |
+| Incident correlation (0.3) | Bounded deterministic lexical rules and human review; no automatic root-cause claim. |
+| Retrieval (M8) | Later evaluated semantic search, with a lexical baseline and tenant-filtered retrieval. |
 | Generation (1.1) | Optional providers and test fakes; approved drafts only, never autonomous sends. |
 | Observability | Structured logs and request IDs now; job metrics later. No monitoring cluster without a requirement. |
 
@@ -40,7 +42,7 @@ Async network I/O may later benefit bounded outgoing delivery batches. Blocking 
 operations use synchronous routes and must not be placed directly on the event loop.
 CPU-heavy embeddings run in workers, not API requests.
 
-## Current M6 deployment
+## Current M7 deployment
 
 ```mermaid
 flowchart LR
@@ -51,6 +53,8 @@ flowchart LR
     Worker[Celery worker + Beat] --> DB
     Worker --> Redis[(Redis broker)]
     Worker --> SMTP[Mailpit local SMTP]
+    Worker --> Radar[Bounded incident detector]
+    Radar --> DB
 ```
 
 Compose waits for database health, then a successful migration, then starts the API,
@@ -107,21 +111,24 @@ Workers call the same services as API handlers. Reporting is read-only.
 - Error responses include stable codes and request IDs, never raw database exceptions.
 - Configuration via environment or root `.env`; no production secrets committed.
 
-## Incident permissions (0.3; no new roles)
+## Incident permissions (M7; no new roles)
 
 | Action | Owner | Administrator | Agent |
 | --- | --- | --- | --- |
 | View incidents/evidence in own organization | Yes | Yes | Yes |
-| Report a suspected incident / propose a candidate ticket | Yes | Yes | Yes |
+| Queue or retry a deterministic detection run | Yes | Yes | Yes |
 | Create a confirmed manual incident | Yes | Yes | No |
 | Confirm or reject automated proposals | Yes | Yes | No |
 | Link/unlink tickets on a confirmed incident | Yes | Yes | No |
 | Change severity, owner, or incident status | Yes | Yes | No |
-| Approve customer-wide incident communication | Yes | Yes | No |
+| Add internal investigation notes | Yes | Yes | Yes |
 | Reply on an individual ticket | Yes | Yes | Yes, under ticket permissions |
 
-Agent suggestions are non-authoritative. Customers see their own public conversations,
-not incident evidence, other customers, or internal notes. All mutations are audited.
+Agents can view evidence and add notes but cannot confirm/reject proposals or change
+incident settings. Customers see their own public conversations, not incident evidence,
+other customers, or internal notes. All mutations are audited. Incident transitions are
+investigating -> monitoring/resolved, monitoring -> investigating/resolved, and resolved
+-> investigating. Incident changes never mutate linked tickets or SLA state.
 
 ## Security and reliability progression
 
@@ -163,12 +170,17 @@ do not silently rewrite deadlines. Equality with a deadline is on time.
 Late scans infer historical breaches from timestamps but suppress obsolete alerts.
 Reporting includes completed targets or passed deadlines, excluding open not-yet-due targets.
 
-## AI and Incident Radar progression
+## Incident Radar and AI progression
 
-0.3 starts with manual incidents, then bounded time windows, shared issue/error terms,
-distinct contacts, transparent evidence, and rejection suppression. Similar symptoms
-are not proof of a shared root cause. Compare semantic candidate expansion against
-the lexical baseline; split evaluation by incident/scenario, not random paraphrase.
+M7 adds manual incidents and a bounded lexical detector over recent ticket titles and
+initial public messages. It requires multiple significant shared terms, distinct
+contacts, a time window, complete-link groups, and evidence. Proposal creation is
+idempotent and rejected fingerprints are durably suppressed. Similar symptoms are not
+proof of a shared root cause. See [incident-radar.md](incident-radar.md) for thresholds,
+workflow, evaluation and limits.
+
+M8 may add semantic candidate expansion and compare it against this lexical baseline;
+split evaluation by incident/scenario, not random paraphrase.
 Track precision/recall, false proposals, retrieval precision@k/MRR, and latency.
 
 1.1 adds text knowledge articles with immutable revisions, retrieval, optional summaries

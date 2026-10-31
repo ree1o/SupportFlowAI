@@ -2,11 +2,13 @@
 
 Intelligent Customer Support & Incident Management Platform.
 
-**Current implementation: M6 - Secure Inbound Integrations & Webhooks.**
+**Current implementation: M7 - Manual Incidents & Deterministic Incident Radar.**
 A working staff helpdesk extends the verified identity and application baseline.
 The staff helpdesk now supports customer self-service and recoverable asynchronous
 notifications, SLA snapshots, deadline monitoring, staff breach alerts, operational reports,
-and signed customer intake from explicitly contact-bound integration sources.
+and signed customer intake from explicitly contact-bound integration sources. It also
+includes staff-reviewed incident proposals from bounded lexical correlation; the detector
+does not infer a root cause or use an external AI provider.
 
 ## Documentation
 
@@ -22,6 +24,7 @@ and signed customer intake from explicitly contact-bound integration sources.
 - [Customer portal, account lifecycle, and background processing](docs/customer-portal.md)
 - [SLA semantics, deadlines, metrics, and API](docs/sla.md)
 - [Signed inbound webhook integration guide](docs/integrations.md)
+- [Manual incidents and deterministic Incident Radar](docs/incident-radar.md)
 
 Basic authorization and tenant isolation are implemented. PostgreSQL RLS is deferred to 1.0.
 
@@ -100,6 +103,16 @@ contact. Save its one-time credential and follow the [signed webhook guide](docs
 to create a ticket and append a public message. The source can only act for that contact;
 receipts show event IDs and outcomes without retaining raw payloads. Rotate or revoke the
 credential to verify immediate invalidation. Agents cannot manage signing keys.
+
+## Demonstrate M7
+
+Create at least two contacts and tickets describing the same specific symptom within
+the configured window, plus one unrelated ticket. Open **Incident Radar**, run detection,
+inspect terms/category/time evidence, remove any false-positive ticket, and confirm the
+proposal. The incident timeline records review while linked ticket statuses and SLA
+deadlines stay unchanged. Reject another proposal and rerun to see exact evidence
+suppression. Full thresholds, evaluation, and role rules are in
+[docs/incident-radar.md](docs/incident-radar.md).
 
 All published ports bind to 127.0.0.1. The frontend uses Vite's development server and
 proxies `/api` to FastAPI: no broad CORS policy is needed. This Compose file is for
@@ -293,8 +306,8 @@ Public replies are stored conversation records, not delivered messages. No custo
 access exists in M3. Full permissions, transitions, API examples and limitations are
 in [the ticket design](docs/tickets.md).
 
-## Next: M4 (requires approval)
+## Next milestone
 
-Customer portal and customer account/access flows are the next separately scoped
-milestone. Customer identity must be distinct from staff membership, with access to
-authorized public conversations only. No M4 implementation is included here.
+M8 semantic search and embeddings require separate approval. M7 uses deterministic
+lexical rules only; embeddings, vector storage, and generative AI are outside the
+current implementation.

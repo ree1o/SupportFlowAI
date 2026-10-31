@@ -1,0 +1,58 @@
+[
+  {
+    "label": "related",
+    "left": {"title": "Payment fails at checkout", "body": "Card authorization times out when I pay."},
+    "right": {"title": "Checkout payment will not complete", "body": "Card payment timeout when submitting the order."},
+    "category_match": true,
+    "minutes_apart": 18
+  },
+  {
+    "label": "related",
+    "left": {"title": "Login session keeps expiring", "body": "Authentication times out after sign in."},
+    "right": {"title": "Cannot stay logged in", "body": "Login session expires during authentication."},
+    "category_match": true,
+    "minutes_apart": 42
+  },
+  {
+    "label": "related",
+    "left": {"title": "Export report download stalls", "body": "CSV export freezes while generating the report."},
+    "right": {"title": "Report export hangs", "body": "Generating the CSV report freezes before download."},
+    "category_match": false,
+    "minutes_apart": 60
+  },
+  {
+    "label": "related",
+    "left": {"title": "La factura no carga", "body": "La página de factura queda bloqueada al abrir."},
+    "right": {"title": "Factura bloqueada al abrir", "body": "La página de factura no carga correctamente."},
+    "category_match": true,
+    "minutes_apart": 75
+  },
+  {
+    "label": "unrelated",
+    "left": {"title": "Error problem help", "body": "Something is not working."},
+    "right": {"title": "Help with a problem", "body": "The error is not working."},
+    "category_match": false,
+    "minutes_apart": 2
+  },
+  {
+    "label": "unrelated",
+    "left": {"title": "Update billing address", "body": "Please change the invoice recipient name."},
+    "right": {"title": "Refund duplicate charge", "body": "Card payment was charged twice."},
+    "category_match": true,
+    "minutes_apart": 12
+  },
+  {
+    "label": "unrelated",
+    "left": {"title": "Browser button color", "body": "The account page uses a dark blue button."},
+    "right": {"title": "Password reset email", "body": "My account cannot sign in after reset."},
+    "category_match": false,
+    "minutes_apart": 4
+  },
+  {
+    "label": "unrelated",
+    "left": {"title": "Cannot print invoice", "body": "The browser printer dialog is blank."},
+    "right": {"title": "Cannot download invoice", "body": "The browser page shows a PDF."},
+    "category_match": false,
+    "minutes_apart": 990
+  }
+]

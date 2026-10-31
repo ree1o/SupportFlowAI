@@ -12,6 +12,7 @@ from app.customers.models import BackgroundJob, EmailDelivery, OutboxEvent
 from app.database import Database
 from app.identity import models as identity_models  # noqa: F401 -- load all FK targets in worker metadata
 from app.identity.security import utcnow
+from app.incidents import models as incident_models  # noqa: F401 -- load M7 metadata in worker
 from app.sla import models as sla_models  # noqa: F401 -- load M5 metadata in worker
 from app.tickets import models as ticket_models  # noqa: F401 -- load all FK targets in worker metadata
 
@@ -34,6 +35,14 @@ celery_app.conf.update(
         "scan-sla-deadlines": {
             "task": "supportflow.scan_sla_deadlines",
             "schedule": 60.0,
+        },
+        "schedule-incident-radar": {
+            "task": "supportflow.schedule_incident_radar",
+            "schedule": 900.0,
+        },
+        "recover-incident-radar-runs": {
+            "task": "supportflow.recover_incident_radar_runs",
+            "schedule": 30.0,
         },
     },
 )
@@ -175,5 +184,65 @@ def scan_sla_deadlines() -> int:
     except Exception:
         database.dispose()
         raise
+    finally:
+        database.dispose()
+
+
+@celery_app.task(
+    name="supportflow.detect_incident_run",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True,
+    max_retries=5,
+)
+def detect_incident_run(run_id: str) -> int:
+    from app.incidents.service import process_detection_run
+
+    database = Database(Settings())
+    try:
+        with database.session() as db:
+            return process_detection_run(db, UUID(run_id), Settings())
+    finally:
+        database.dispose()
+
+
+@celery_app.task(
+    name="supportflow.recover_incident_radar_runs",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True,
+    max_retries=5,
+)
+def recover_incident_radar_runs() -> int:
+    from app.incidents.service import load_pending_run_ids
+
+    database = Database(Settings())
+    try:
+        with database.session() as db:
+            run_ids = load_pending_run_ids(db, limit=50)
+        for run_id in run_ids:
+            detect_incident_run.delay(str(run_id))
+        return len(run_ids)
+    finally:
+        database.dispose()
+
+
+@celery_app.task(
+    name="supportflow.schedule_incident_radar",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True,
+    max_retries=5,
+)
+def schedule_incident_radar() -> int:
+    from app.incidents.service import schedule_org_runs
+
+    database = Database(Settings())
+    try:
+        with database.session() as db:
+            run_ids = schedule_org_runs(db, Settings(), limit=25)
+        for run_id in run_ids:
+            detect_incident_run.delay(str(run_id))
+        return len(run_ids)
     finally:
         database.dispose()

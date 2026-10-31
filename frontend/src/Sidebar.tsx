@@ -74,6 +74,7 @@ export function Sidebar({
         <NavLink to="/app/contacts">Contacts</NavLink>
         <NavLink to="/app/categories">Categories</NavLink>
         <NavLink to="/app/operations">SLA & operations</NavLink>
+        <NavLink to="/app/incidents">Incident Radar</NavLink>
         {selected && selected.role !== "agent" && <NavLink to="/app/integrations">Integrations</NavLink>}
         <NavLink to="/app" end>
           Organization & team

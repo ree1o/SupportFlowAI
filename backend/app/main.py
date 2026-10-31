@@ -20,6 +20,7 @@ from app.errors import AppError, error_response
 from app.health import router
 from app.identity.api import router as identity_router
 from app.identity.security import clear_cookies
+from app.incidents.api import router as incidents_router
 from app.integrations.api import inbound_router
 from app.integrations.api import router as integrations_router
 from app.logging import configure_logging
@@ -127,5 +128,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(tickets_router)
     app.include_router(sla_router)
     app.include_router(integrations_router)
+    app.include_router(incidents_router)
     app.include_router(inbound_router)
     return app

@@ -22,7 +22,9 @@ def test_migration_upgrade_downgrade_and_readiness(postgres):
         command.upgrade(alembic, "head")
         assert client.get("/api/health/ready").status_code == 200
     with database.engine.connect() as connection:
-        assert MigrationContext.configure(connection).get_current_heads() == ("0006_integrations",)
+        assert MigrationContext.configure(connection).get_current_heads() == (
+            "0007_incident_radar",
+        )
     assert set(inspect(database.engine).get_table_names()) == {
         "alembic_version",
         "users",
@@ -46,6 +48,13 @@ def test_migration_upgrade_downgrade_and_readiness(postgres):
         "ticket_slas",
         "integration_sources",
         "webhook_receipts",
+        "incidents",
+        "incident_tickets",
+        "incident_events",
+        "radar_runs",
+        "radar_proposals",
+        "radar_proposal_tickets",
+        "radar_suppressions",
     }
     command.check(alembic)
 
@@ -56,7 +65,7 @@ def test_m5_additive_upgrade_from_m4(postgres):
     tables = set(inspect(database.engine).get_table_names())
     assert {"tickets", "customer_access", "outbox_events"} <= tables
     assert not {"sla_policies", "sla_policy_versions", "ticket_slas"} & tables
-    command.upgrade(alembic, "head")
+    command.upgrade(alembic, "0005_sla")
     tables = set(inspect(database.engine).get_table_names())
     assert {"tickets", "customer_access", "outbox_events"} <= tables
     assert {"sla_policies", "sla_policy_versions", "ticket_slas"} <= tables
@@ -68,9 +77,39 @@ def test_m6_upgrade_from_m5_is_additive(postgres):
     tables = set(inspect(database.engine).get_table_names())
     assert {"tickets", "ticket_slas", "outbox_events"} <= tables
     assert not {"integration_sources", "webhook_receipts"} & tables
-    command.upgrade(alembic, "head")
+    command.upgrade(alembic, "0006_integrations")
     tables = set(inspect(database.engine).get_table_names())
     assert {"integration_sources", "webhook_receipts", "tickets", "ticket_slas"} <= tables
+
+
+def test_m7_upgrade_from_m6_is_additive(postgres):
+    _, database, alembic = postgres
+    command.downgrade(alembic, "0006_integrations")
+    tables = set(inspect(database.engine).get_table_names())
+    assert {"integration_sources", "webhook_receipts", "tickets", "ticket_slas"} <= tables
+    assert (
+        not {
+            "incidents",
+            "incident_tickets",
+            "incident_events",
+            "radar_runs",
+            "radar_proposals",
+            "radar_proposal_tickets",
+            "radar_suppressions",
+        }
+        & tables
+    )
+    command.upgrade(alembic, "head")
+    tables = set(inspect(database.engine).get_table_names())
+    assert {
+        "incidents",
+        "incident_tickets",
+        "incident_events",
+        "radar_runs",
+        "radar_proposals",
+        "radar_proposal_tickets",
+        "radar_suppressions",
+    } <= tables
 
 
 def test_failed_transaction_rolls_back_all_writes(postgres):

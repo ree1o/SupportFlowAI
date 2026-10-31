@@ -1,6 +1,7 @@
 # Incremental release roadmap
 
-Approved scope, 2026-10-30. M1-M6 are complete; the next milestone requires separate approval.
+Approved scope, 2026-10-31. M1-M7 are complete; the next milestone requires separate
+approval.
 Each release has a self-contained demonstration. Completion never authorizes the next
 milestone. Complexity estimates are relative, not delivery-date commitments.
 
@@ -58,16 +59,16 @@ the payload under the same event ID is rejected; source revocation stops further
 - Receipt metadata omits raw payload, signature and credential.
 - Details and sender example: [inbound integration guide](integrations.md).
 
-## Release 0.3 - Incident Radar (L; later)
+## Release 0.3 - Incident Radar (M7; completed)
 
 Independent demo: related and unrelated complaints yield reviewable evidence; a manager
-confirms or rejects a proposal; lexical and semantic search are compared.
+confirms or rejects a proposal and manages the resulting incident.
 
-- Manual incidents, deterministic time-window/error-term evidence, distinct contacts,
+- Manual incidents, deterministic lexical time-window evidence, distinct contacts,
   rejection suppression, audit, and versioned detection inputs.
-- Local embeddings plus pgvector and tenant-filtered related-ticket retrieval.
-- Held-out retrieval and detector evaluation, including hard negative examples.
-- No generative provider required. Similar symptoms are not proof of a shared cause.
+- Detector evaluation on labeled fixture pairs, including hard negatives; results are
+  limited to the fixture and do not claim production accuracy.
+- No embeddings or generative provider. Similar symptoms are not proof of a shared cause.
 
 ## Release 1.0 - Portfolio-ready hardening (L; later)
 
@@ -96,9 +97,9 @@ with verifiable citations; disabled/unavailable providers leave manual workflows
 
 ## Scope guardrails
 
-Critical path: M1 -> M2 -> M3 -> M4 customer portal/durable work -> M5 SLA -> M6 integrations -> M7
-Incident Radar -> M9 hardening -> M10 AI Copilot. Milestone identifiers may include
-separate integration/retrieval releases. Only explicitly approved scope may be built.
+Critical path: M1 -> M2 -> M3 -> M4 customer portal/durable work -> M5 SLA -> M6
+integrations -> M7 Incident Radar -> M8 evaluated semantic search -> M9 hardening ->
+M10 AI Copilot. Only explicitly approved scope may be built.
 
 No billing, inbound email ticket creation, uploads, business-hours calendars,
 configurable roles, generic workflow builder, Kafka, Kubernetes, or microservices in
