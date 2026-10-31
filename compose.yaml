@@ -13,6 +13,11 @@ x-backend: &backend
     SUPPORTFLOW_REDIS_URL: redis://redis:6379/0
     SUPPORTFLOW_SMTP_HOST: mailpit
     SUPPORTFLOW_SMTP_PORT: 1025
+    SUPPORTFLOW_SEMANTIC_MODEL_CACHE_DIR: /var/cache/supportflow/models
+    HF_HOME: /var/cache/supportflow/models/.huggingface
+    SUPPORTFLOW_SEMANTIC_INDEX_BATCH_SIZE: ${SUPPORTFLOW_SEMANTIC_INDEX_BATCH_SIZE:-50}
+    SUPPORTFLOW_SEMANTIC_INDEX_MAX_ATTEMPTS: ${SUPPORTFLOW_SEMANTIC_INDEX_MAX_ATTEMPTS:-5}
+    SUPPORTFLOW_SEMANTIC_MIN_SIMILARITY: ${SUPPORTFLOW_SEMANTIC_MIN_SIMILARITY:-0.35}
     SUPPORTFLOW_EMAIL_FROM: ${SUPPORTFLOW_EMAIL_FROM:-support@supportflow.local}
     SUPPORTFLOW_PUBLIC_APP_URL: ${SUPPORTFLOW_PUBLIC_APP_URL:-http://localhost:5173}
     SUPPORTFLOW_RADAR_LOOKBACK_HOURS: ${SUPPORTFLOW_RADAR_LOOKBACK_HOURS:-72}
@@ -25,7 +30,7 @@ x-backend: &backend
 
 services:
   db:
-    image: postgres:16.10-bookworm
+    image: pgvector/pgvector:0.8.1-pg16-bookworm
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-supportflow}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-supportflow_dev_only}
@@ -89,6 +94,8 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_started
+    volumes:
+      - semantic_model_cache:/var/cache/supportflow/models
     restart: unless-stopped
 
   mailpit:
@@ -108,3 +115,4 @@ services:
 
 volumes:
   postgres_data:
+  semantic_model_cache:

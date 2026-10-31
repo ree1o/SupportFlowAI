@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-24.04
     services:
       postgres:
-        image: postgres:16.10-bookworm
+        image: pgvector/pgvector:0.8.1-pg16-bookworm
         env:
           POSTGRES_USER: supportflow
           POSTGRES_PASSWORD: ci_password

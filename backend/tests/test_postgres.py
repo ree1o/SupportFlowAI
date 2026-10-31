@@ -23,7 +23,7 @@ def test_migration_upgrade_downgrade_and_readiness(postgres):
         assert client.get("/api/health/ready").status_code == 200
     with database.engine.connect() as connection:
         assert MigrationContext.configure(connection).get_current_heads() == (
-            "0007_incident_radar",
+            "0008_semantic_retrieval",
         )
     assert set(inspect(database.engine).get_table_names()) == {
         "alembic_version",
@@ -55,6 +55,7 @@ def test_migration_upgrade_downgrade_and_readiness(postgres):
         "radar_proposals",
         "radar_proposal_tickets",
         "radar_suppressions",
+        "ticket_embeddings",
     }
     command.check(alembic)
 
@@ -110,6 +111,17 @@ def test_m7_upgrade_from_m6_is_additive(postgres):
         "radar_proposal_tickets",
         "radar_suppressions",
     } <= tables
+
+
+def test_m8_upgrade_from_m7_is_additive(postgres):
+    _, database, alembic = postgres
+    command.downgrade(alembic, "0007_incident_radar")
+    tables = set(inspect(database.engine).get_table_names())
+    assert "tickets" in tables and "radar_runs" in tables
+    assert "ticket_embeddings" not in tables
+    command.upgrade(alembic, "head")
+    tables = set(inspect(database.engine).get_table_names())
+    assert {"tickets", "radar_runs", "ticket_embeddings"} <= tables
 
 
 def test_failed_transaction_rolls_back_all_writes(postgres):

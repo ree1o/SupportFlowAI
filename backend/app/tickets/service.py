@@ -462,6 +462,9 @@ def create_ticket(db: Session, auth: AuthContext, org: UUID, data: TicketCreate)
         )
         db.add(message)
         db.flush()
+        from app.semantic.service import enqueue_ticket
+
+        enqueue_ticket(db, org, record.id)
         audit(
             db,
             record,
@@ -525,6 +528,9 @@ def create_integration_ticket(
     )
     db.add(message)
     db.flush()
+    from app.semantic.service import enqueue_ticket
+
+    enqueue_ticket(db, org, ticket.id)
     db.add(
         AuditEvent(
             organization_id=org,

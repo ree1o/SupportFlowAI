@@ -24,6 +24,7 @@ from app.incidents.api import router as incidents_router
 from app.integrations.api import inbound_router
 from app.integrations.api import router as integrations_router
 from app.logging import configure_logging
+from app.semantic.api import router as semantic_router
 from app.sla.api import router as sla_router
 from app.tickets.api import router as tickets_router
 
@@ -129,5 +130,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(sla_router)
     app.include_router(integrations_router)
     app.include_router(incidents_router)
+    app.include_router(semantic_router)
     app.include_router(inbound_router)
     return app

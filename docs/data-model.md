@@ -3,8 +3,9 @@
 M1 creates only the Alembic version table. M2 migration `0002_identity` adds users,
 sessions, organizations and memberships. M3 migration `0003_tickets` adds contacts,
 categories, tickets, messages and audit_events. M4-M6 add customer access/jobs, SLA,
-and integrations as described below. M7 adds incident and deterministic Radar tables;
-embedding and AI tables remain future designs.
+and integrations as described below. M7 adds incident and deterministic Radar tables.
+M8 adds the semantic index described in [semantic-retrieval.md](semantic-retrieval.md);
+generative AI tables remain future designs.
 See [identity design](identity.md) and [ticket design](tickets.md) for implemented
 constraints, transactions, indexes and the current ER diagram.
 
@@ -16,7 +17,7 @@ constraints, transactions, indexes and the current ER diagram.
 | 0.2 / M5 | sla_policies, sla_policy_versions, ticket_slas |
 | 0.2 / M6 | integration_sources, webhook_receipts; integration actor references on tickets, messages and audit_events |
 | 0.3 / M7 | incidents, incident_tickets, incident_events, radar_runs, radar_proposals, radar_proposal_tickets, radar_suppressions |
-| M8+ | future semantic retrieval data, only after an approved design |
+| M8 | ticket_embeddings: local 384-dimensional vectors, source digest/version, model and retry/index state |
 | 1.1 | knowledge_articles, article_revisions, knowledge_chunks, ai_runs, ai_suggestions, suggestion_feedback |
 
 ```mermaid
@@ -32,6 +33,7 @@ erDiagram
     MEMBERSHIPS o|--o{ TICKETS : assigned
     TICKETS ||--o{ MESSAGES : contains
     TICKETS ||--o| TICKET_SLA : tracks
+    TICKETS ||--o{ TICKET_EMBEDDINGS : indexes
     SLA_POLICIES ||--o{ TICKET_SLA : defines
     ORGANIZATIONS ||--o{ AUDIT_EVENTS : records
     ORGANIZATIONS ||--o{ OUTBOX_EVENTS : emits
@@ -61,7 +63,9 @@ payload digests are conflicts. Ticket versions guard concurrent assignment/statu
 Likely indexes: organization/status/creation ticket queue; organization/assignee/status;
 organization/requester/creation; organization/ticket/creation messages; partial unresolved
 SLA deadline index; partial pending-work index; organization/target/time audit timeline;
-GIN full-text search. Measure plans before adding indexes or approximate vector search.
+GIN full-text search; embedding dispatch/current-model indexes. M8 initially uses exact
+tenant-filtered pgvector cosine distance rather than an approximate vector index; measure
+plans and filtered recall before considering ANN.
 
 Transactions cover whole use cases: ticket+first message+audit+outbox, reply+first-response
 timestamp, proposal confirmation+incident links. No external API or SMTP call runs inside

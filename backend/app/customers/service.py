@@ -641,6 +641,9 @@ def create_ticket(db: Session, auth: AuthContext, org: UUID, data: CustomerTicke
                 created_at=now,
             )
         )
+        from app.semantic.service import enqueue_ticket
+
+        enqueue_ticket(db, org, ticket.id)
         db.flush()
         return ticket_view(ticket)
 

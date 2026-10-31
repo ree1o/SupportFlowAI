@@ -18,6 +18,7 @@ import {
   type Page,
   type Ticket,
   type Timeline,
+  type RelatedTickets as RelatedTicketData,
 } from "./types";
 
 const date = (value: string) => new Date(value).toLocaleString();
@@ -400,6 +401,9 @@ export function TicketDetail({ org }: { org: Organization }) {
   const root = `/organizations/${org.id}`;
   const path = `${root}/tickets/${id}`;
   const remote = useRemote<Ticket>(path);
+  const related = useRemote<RelatedTicketData>(
+    id ? `${root}/tickets/${id}/related?limit=5` : null,
+  );
   const categories = useRemote<Category[]>(
     `${root}/categories?include_inactive=true`,
   );
@@ -802,6 +806,44 @@ export function TicketDetail({ org }: { org: Organization }) {
               </>
             )}
           </dl>
+          <section className="related-tickets" aria-labelledby="related-title">
+            <div className="section-heading">
+              <h2 id="related-title">Related tickets</h2>
+              <span className="muted">Semantic</span>
+            </div>
+            {related.loading ? (
+              <p aria-busy="true">Finding related tickets…</p>
+            ) : related.error ? (
+              <p className="muted" role="status">
+                Related-ticket retrieval is unavailable. Your ticket workflow is unaffected.
+              </p>
+            ) : related.data?.index_status !== "ready" ? (
+              <p className="muted" role="status">
+                Index {related.data?.index_status ?? "pending"}. Related tickets will appear after local indexing.
+              </p>
+            ) : related.data.items.length ? (
+              <div className="related-list">
+                {related.data.items.map((item) => (
+                  <Link
+                    className="related-ticket"
+                    key={item.id}
+                    to={`/app/tickets/${item.id}`}
+                  >
+                    <span className="related-meta">
+                      <span className={`status-pill status-${item.status}`}>{item.status}</span>
+                      <span className="similarity">{Math.round(item.similarity * 100)}% similar</span>
+                    </span>
+                    <strong>{item.title}</strong>
+                    <span className="muted">{item.category_name ?? "Uncategorized"} · {item.priority}</span>
+                    <span className="related-preview">{item.preview || "No public preview"}</span>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="muted">No close semantic matches found.</p>
+            )}
+            <p className="related-disclaimer">Similarity is a search signal, not confirmation of a shared cause.</p>
+          </section>
         </aside>
       </div>
     </>

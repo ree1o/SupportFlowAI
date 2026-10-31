@@ -2,13 +2,14 @@
 
 Intelligent Customer Support & Incident Management Platform.
 
-**Current implementation: M7 - Manual Incidents & Deterministic Incident Radar.**
+**Current implementation: M8 - Evaluated Semantic Ticket Retrieval.**
 A working staff helpdesk extends the verified identity and application baseline.
 The staff helpdesk now supports customer self-service and recoverable asynchronous
 notifications, SLA snapshots, deadline monitoring, staff breach alerts, operational reports,
 and signed customer intake from explicitly contact-bound integration sources. It also
-includes staff-reviewed incident proposals from bounded lexical correlation; the detector
-does not infer a root cause or use an external AI provider.
+includes staff-reviewed incident proposals from bounded lexical correlation and separate
+staff-only semantic ticket retrieval using a local multilingual embedding model. Neither
+capability infers a root cause or requires a hosted AI provider.
 
 ## Documentation
 
@@ -25,6 +26,7 @@ does not infer a root cause or use an external AI provider.
 - [SLA semantics, deadlines, metrics, and API](docs/sla.md)
 - [Signed inbound webhook integration guide](docs/integrations.md)
 - [Manual incidents and deterministic Incident Radar](docs/incident-radar.md)
+- [Semantic retrieval, privacy and evaluation](docs/semantic-retrieval.md)
 
 Basic authorization and tenant isolation are implemented. PostgreSQL RLS is deferred to 1.0.
 
@@ -47,6 +49,8 @@ Basic authorization and tenant isolation are implemented. PostgreSQL RLS is defe
   retry-safe breach notifications, ticket SLA indicators, and operational reporting.
 - HMAC-SHA256 inbound signatures, encrypted one-time credentials, contact-bound
   sources, atomic idempotent webhook receipts, and integration provenance in ticket history.
+- Local CPU multilingual sentence embeddings, PostgreSQL pgvector exact search, durable
+  tenant-scoped indexing, and a held-out lexical comparison for staff related-ticket lookup.
 - Exact Python dependency pins with hash locks and npm package lock.
 - Local Docker Compose startup ordering and GitHub Actions validation.
 
@@ -114,6 +118,23 @@ deadlines stay unchanged. Reject another proposal and rerun to see exact evidenc
 suppression. Full thresholds, evaluation, and role rules are in
 [docs/incident-radar.md](docs/incident-radar.md).
 
+## Demonstrate M8
+
+Build the worker image, then explicitly prepare its model cache once:
+
+```powershell
+docker compose build worker
+docker compose run --rm worker python -m app.semantic.setup_model
+```
+
+Create two tickets with equivalent meaning but different phrasing, such as “Cannot sign in
+after resetting my password” and “Authentication fails after password change.” Open the
+first ticket's Related tickets panel after the worker indexes it. Results are organization
+and staff-visibility scoped; the score is similarity only, not a shared-root-cause claim.
+Run the reproducible held-out comparison using the documented `supportflow_test` database
+and local model cache instructions in [semantic-retrieval.md](docs/semantic-retrieval.md).
+The model cache is local data and is not checked into Git.
+
 All published ports bind to 127.0.0.1. The frontend uses Vite's development server and
 proxies `/api` to FastAPI: no broad CORS policy is needed. This Compose file is for
 local development, not a public production deployment. A production runtime, TLS,
@@ -173,6 +194,10 @@ Do not run the host API and Compose API on port 8000 simultaneously.
 | SUPPORTFLOW_PUBLIC_APP_URL | `http://localhost:5173` for local account-action links |
 | SUPPORTFLOW_EMAIL_FROM | Local sender identity captured by Mailpit |
 | SUPPORTFLOW_TOKEN_ENCRYPTION_KEY | 32-byte Fernet key; use a unique secret outside local development |
+| SUPPORTFLOW_SEMANTIC_MODEL_CACHE_DIR | Local model cache; Compose worker uses the named volume at `/var/cache/supportflow/models` |
+| SUPPORTFLOW_SEMANTIC_INDEX_BATCH_SIZE | 50 tickets per manager backfill batch (bounded to 1-200) |
+| SUPPORTFLOW_SEMANTIC_INDEX_MAX_ATTEMPTS | 5 retry attempts before visible failed state |
+| SUPPORTFLOW_SEMANTIC_MIN_SIMILARITY | 0.35 cosine similarity display floor; a relevance signal, not a cause claim |
 
 Environment variables override `.env`. URL-encode special characters in URL credentials.
 Compose's interpolated local password should be URL-safe; do not paste unescaped reserved

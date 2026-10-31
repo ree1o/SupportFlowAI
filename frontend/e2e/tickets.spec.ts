@@ -52,6 +52,10 @@ async function ticket(page: Page, title: string) {
   await expect(
     page.getByText("Checkout fails after entering a card.", { exact: true }),
   ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Related tickets" })).toBeVisible();
+  await expect(
+    page.getByText("Similarity is a search signal, not confirmation of a shared cause."),
+  ).toBeVisible();
 }
 
 async function applyFilters(
@@ -99,7 +103,38 @@ test("staff intake, assignment, distinct conversations, audit, filtering, and te
     .getByRole("button", { name: "Create category", exact: true })
     .click();
   await expect(page.getByLabel("Category name for Payments")).toBeVisible();
+  await page.route(/\/related\?limit=5$/, async (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        model_version: "semantic-e2e-fixture-v1",
+        index_status: "ready",
+        indexed_at: "2026-10-31T12:00:00Z",
+        items: [
+          {
+            id: "11111111-1111-4111-8111-111111111111",
+            title: "Authentication fails after password change",
+            status: "open",
+            priority: "high",
+            category_name: "Accounts",
+            preview: "Updated credentials are rejected at sign-in.",
+            similarity: 0.92,
+          },
+        ],
+      }),
+    }),
+  );
   await ticket(page, "Customer cannot complete checkout");
+  await expect(
+    page.getByRole("link", {
+      name: /Authentication fails after password change/,
+    }),
+  ).toBeVisible();
+  await expect(page.getByText("92% similar", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Updated credentials are rejected at sign-in."),
+  ).toBeVisible();
   await expect(page.getByRole("region", { name: "SLA deadlines" })).toBeVisible();
   await expect(page.getByText("First human response", { exact: true })).toBeVisible();
   await page.getByLabel("Ticket assignee").selectOption({ index: 1 });

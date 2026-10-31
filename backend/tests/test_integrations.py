@@ -242,7 +242,14 @@ def test_signed_ticket_creation_sla_and_duplicate_receipt(integration_desk):
             )
             == 2
         )
-        assert db.scalar(select(func.count()).select_from(OutboxEvent)) == 2
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(OutboxEvent)
+                .where(OutboxEvent.event_type != "semantic.index")
+            )
+            == 2
+        )
         message = db.scalar(select(Message).where(Message.ticket_id == ticket.id))
         assert message and str(message.author_integration_source_id) == desk["source"]["id"]
         assert message.author_membership_id is None and message.visibility == "public"
@@ -328,8 +335,23 @@ def test_signature_validation_message_visibility_and_receipts(integration_desk):
             )
             == 6
         )
-        assert db.scalar(select(func.count()).select_from(OutboxEvent)) == 6
-        assert db.scalar(select(func.count()).select_from(BackgroundJob)) == 6
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(OutboxEvent)
+                .where(OutboxEvent.event_type != "semantic.index")
+            )
+            == 6
+        )
+        assert (
+            db.scalar(
+                select(func.count())
+                .select_from(BackgroundJob)
+                .join(OutboxEvent, OutboxEvent.id == BackgroundJob.outbox_event_id)
+                .where(OutboxEvent.event_type != "semantic.index")
+            )
+            == 6
+        )
         ticket_row = db.get(Ticket, ticket_id)
         assert ticket_row and ticket_row.status == "open"
         assert ticket_row.first_resolved_at is not None and ticket_row.resolved_at is None

@@ -6,8 +6,8 @@ M1–M7 are implemented. See [identity design](identity.md), [ticket design](tic
 and [customer portal design](customer-portal.md) for current endpoints, permissions,
 security, transaction rules and limitations. SLA semantics are documented in [sla.md](sla.md);
 inbound signatures and receipts are documented in [integrations.md](integrations.md),
-and incidents in [incident-radar.md](incident-radar.md). Semantic retrieval and AI remain
-later work.
+and incidents in [incident-radar.md](incident-radar.md). M8 semantic retrieval is
+documented in [semantic-retrieval.md](semantic-retrieval.md); generative AI remains later.
 
 ## Product and scope
 
@@ -33,7 +33,7 @@ English demo data, one region, modest volumes, and one developer are initial ass
 | Queue (0.2) | Celery + Redis dispatch PostgreSQL outbox jobs; outbox and job rows remain authoritative and recoverable. |
 | Frontend | React + TypeScript + Vite. Same-origin `/api` proxy; polling before SSE/WebSockets. |
 | Incident correlation (0.3) | Bounded deterministic lexical rules and human review; no automatic root-cause claim. |
-| Retrieval (M8) | Later evaluated semantic search, with a lexical baseline and tenant-filtered retrieval. |
+| Retrieval (M8) | Local multilingual ONNX embeddings, pgvector exact cosine search and a held-out lexical comparison; isolated from M7 detection. |
 | Generation (1.1) | Optional providers and test fakes; approved drafts only, never autonomous sends. |
 | Observability | Structured logs and request IDs now; job metrics later. No monitoring cluster without a requirement. |
 
@@ -42,7 +42,7 @@ Async network I/O may later benefit bounded outgoing delivery batches. Blocking 
 operations use synchronous routes and must not be placed directly on the event loop.
 CPU-heavy embeddings run in workers, not API requests.
 
-## Current M7 deployment
+## Current M8 deployment
 
 ```mermaid
 flowchart LR
@@ -54,7 +54,11 @@ flowchart LR
     Worker --> Redis[(Redis broker)]
     Worker --> SMTP[Mailpit local SMTP]
     Worker --> Radar[Bounded incident detector]
+    Worker --> Embed[Local ONNX embedding worker]
     Radar --> DB
+    Embed --> DB
+    API --> Retrieval[Staff-authorized exact vector retrieval]
+    Retrieval --> DB
 ```
 
 Compose waits for database health, then a successful migration, then starts the API,
@@ -95,7 +99,13 @@ access/notifications, SLA, incidents, knowledge, AI assistance, reporting.
 Routes validate/authenticate and call services. Services enforce policy and own writes.
 Focused queries are sufficient; no generic repository framework is required.
 Tickets do not depend on AI. Incidents can be managed without detection models.
-Workers call the same services as API handlers. Reporting is read-only.
+Workers call the same services as API handlers. Reporting is read-only. Semantic
+indexing is transactionally queued in the existing PostgreSQL outbox, uses the existing
+Celery/Redis workers, and does not run in ticket requests. FastEmbed's pinned ONNX
+runtime loads only an explicitly prepared local cache; absent weights cause a tracked
+retryable indexing failure, not a failed ticket operation. Related-ticket queries filter
+organization and staff visibility in PostgreSQL and use exact cosine distance. See
+[semantic retrieval](semantic-retrieval.md) for source selection, privacy, and evaluation.
 
 ## Session, health, configuration, and logs (M1)
 
@@ -179,9 +189,11 @@ idempotent and rejected fingerprints are durably suppressed. Similar symptoms ar
 proof of a shared root cause. See [incident-radar.md](incident-radar.md) for thresholds,
 workflow, evaluation and limits.
 
-M8 may add semantic candidate expansion and compare it against this lexical baseline;
-split evaluation by incident/scenario, not random paraphrase.
-Track precision/recall, false proposals, retrieval precision@k/MRR, and latency.
+M8 semantic ticket retrieval is a separate staff tool and does not change M7's
+deterministic candidate detector, thresholds, suppression, or confirmation behavior.
+Any future Radar experiment must use separate held-out incident scenarios and compare
+against lexical-v1 before an explicitly approved change. Semantic similarity is not a
+root-cause claim. See [semantic retrieval](semantic-retrieval.md).
 
 1.1 adds text knowledge articles with immutable revisions, retrieval, optional summaries
 and drafts. Citation identifiers must resolve to supplied authorized revision/chunk IDs.

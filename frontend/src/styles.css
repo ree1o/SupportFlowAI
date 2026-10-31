@@ -595,6 +595,61 @@ textarea {
 .ticket-properties select {
   text-transform: capitalize;
 }
+.related-tickets {
+  border-top: 1px solid #334257;
+  margin-top: 20px;
+  padding-top: 16px;
+}
+.related-tickets .section-heading {
+  align-items: baseline;
+}
+.related-tickets .section-heading h2 {
+  margin: 0;
+}
+.related-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+.related-ticket {
+  display: grid;
+  gap: 7px;
+  border: 1px solid #334257;
+  border-radius: 10px;
+  padding: 11px;
+  color: inherit;
+  text-decoration: none;
+}
+.related-ticket:hover,
+.related-ticket:focus-visible {
+  border-color: #7ee5c0;
+  outline: none;
+}
+.related-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.similarity {
+  color: #7ee5c0;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.related-preview,
+.related-ticket strong {
+  overflow-wrap: anywhere;
+}
+.related-preview {
+  color: #c1ccda;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+.related-disclaimer {
+  color: #a9b8cd;
+  font-size: 0.72rem;
+  margin: 12px 0 0;
+}
 .ticket-dates {
   font-size: 0.8rem;
   border-top: 1px solid #334257;

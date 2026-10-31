@@ -7,6 +7,7 @@ from app.database import Base
 from app.identity import models  # noqa: F401 -- register metadata for Alembic
 from app.incidents import models as incident_models  # noqa: F401 -- register M7 metadata
 from app.integrations import models as integration_models  # noqa: F401 -- register M6 metadata
+from app.semantic import models as semantic_models  # noqa: F401 -- register M8 metadata
 from app.sla import models as sla_models  # noqa: F401 -- register M5 metadata
 from app.tickets import models as ticket_models  # noqa: F401 -- register M3 metadata
 

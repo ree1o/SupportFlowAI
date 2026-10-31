@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     radar_min_shared_terms: int = Field(default=2, ge=2, le=5)
     radar_max_tickets: int = Field(default=500, ge=10, le=2000)
     radar_max_candidate_pairs: int = Field(default=50000, ge=1000, le=250000)
+    semantic_model_cache_dir: str = "/var/cache/supportflow/models"
+    semantic_index_batch_size: int = Field(default=50, ge=1, le=200)
+    semantic_index_max_attempts: int = Field(default=5, ge=1, le=10)
+    semantic_min_similarity: float = Field(default=0.35, gt=0, le=1)
     token_encryption_key: SecretStr = SecretStr("MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=")
 
     @model_validator(mode="after")

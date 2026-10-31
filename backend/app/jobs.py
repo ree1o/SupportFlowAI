@@ -13,6 +13,7 @@ from app.database import Database
 from app.identity import models as identity_models  # noqa: F401 -- load all FK targets in worker metadata
 from app.identity.security import utcnow
 from app.incidents import models as incident_models  # noqa: F401 -- load M7 metadata in worker
+from app.semantic import models as semantic_models  # noqa: F401 -- load M8 metadata in worker
 from app.sla import models as sla_models  # noqa: F401 -- load M5 metadata in worker
 from app.tickets import models as ticket_models  # noqa: F401 -- load all FK targets in worker metadata
 
@@ -43,6 +44,10 @@ celery_app.conf.update(
         "recover-incident-radar-runs": {
             "task": "supportflow.recover_incident_radar_runs",
             "schedule": 30.0,
+        },
+        "backfill-semantic-index": {
+            "task": "supportflow.backfill_semantic_index",
+            "schedule": 60.0,
         },
     },
 )
@@ -92,11 +97,17 @@ def process_one(database: Database) -> bool:
         if event_key.startswith("email:"):
             raise ValueError("Invalid event key")
         # A completed marker prevents routine task redelivery from sending again.
-        with database.session() as db:
-            if db.scalar(select(EmailDelivery.id).where(EmailDelivery.event_key == event_key)):
-                mark_complete(database, job_id, event_id, event_key)
-                return True
-        send_email(payload)
+        if event_key.startswith("semantic-index:"):
+            from app.semantic.service import process_outbox_embedding
+
+            with database.session() as db:
+                process_outbox_embedding(db, UUID(payload["embedding_id"]), Settings())
+        else:
+            with database.session() as db:
+                if db.scalar(select(EmailDelivery.id).where(EmailDelivery.event_key == event_key)):
+                    mark_complete(database, job_id, event_id, event_key)
+                    return True
+            send_email(payload)
         mark_complete(database, job_id, event_id, event_key)
     except Exception as exc:
         with database.session() as db:
@@ -108,13 +119,31 @@ def process_one(database: Database) -> bool:
             current_job.locked_until = None
             # Persist exception class only: SMTP exception messages can contain addresses.
             current_job.last_error = type(exc).__name__[:120]
-            if current_job.attempts >= 10:
+            max_attempts = (
+                Settings().semantic_index_max_attempts
+                if event_key.startswith("semantic-index:")
+                else 10
+            )
+            if current_job.attempts >= max_attempts:
                 current_job.status = "failed"
             else:
                 current_job.status = "pending"
                 current_job.available_at = utcnow() + timedelta(
                     seconds=min(3600, 2**current_job.attempts * 5)
                 )
+            if event_key.startswith("semantic-index:"):
+                from app.semantic.service import fail_outbox_embedding
+
+                try:
+                    fail_outbox_embedding(
+                        db,
+                        UUID(payload["embedding_id"]),
+                        current_job.attempts,
+                        type(exc).__name__,
+                        Settings(),
+                    )
+                except Exception:
+                    db.rollback()
             db.commit()
         logger.warning(
             "background_delivery_failed job_id=%s error_type=%s",
@@ -131,7 +160,7 @@ def mark_complete(database: Database, job_id: UUID, event_id: UUID, event_key: s
         if job is None or event is None:
             return
         if job.status != "completed":
-            if (
+            if not event_key.startswith("semantic-index:") and (
                 db.scalar(select(EmailDelivery.id).where(EmailDelivery.event_key == event_key))
                 is None
             ):
@@ -244,5 +273,23 @@ def schedule_incident_radar() -> int:
         for run_id in run_ids:
             detect_incident_run.delay(str(run_id))
         return len(run_ids)
+    finally:
+        database.dispose()
+
+
+@celery_app.task(
+    name="supportflow.backfill_semantic_index",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True,
+    max_retries=5,
+)
+def backfill_semantic_index() -> int:
+    from app.semantic.service import schedule_missing
+
+    database = Database(Settings())
+    try:
+        with database.session() as db:
+            return schedule_missing(db, Settings(), limit=50)
     finally:
         database.dispose()

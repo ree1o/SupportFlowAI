@@ -9,3 +9,7 @@ argon2-cffi==25.1.0
 email-validator==2.3.0
 celery[redis]==5.5.3
 cryptography==46.0.3
+fastembed==0.7.3
+pgvector==0.4.2
+huggingface-hub==0.36.0
+hf-xet==1.8.0

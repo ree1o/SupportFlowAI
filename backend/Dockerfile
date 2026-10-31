@@ -4,7 +4,9 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir --require-hashes -r requirements.txt \
     && groupadd --system supportflow \
-    && useradd --system --gid supportflow supportflow
+    && useradd --system --gid supportflow supportflow \
+    && mkdir -p /var/cache/supportflow/models \
+    && chown -R supportflow:supportflow /var/cache/supportflow
 COPY app ./app
 COPY alembic.ini ./
 COPY migrations ./migrations

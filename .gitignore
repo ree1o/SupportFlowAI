@@ -7,6 +7,7 @@
 venv/
 env/
 .local/
+.cache/
 __pycache__/
 *.py[cod]
 .pytest_cache/

@@ -35,8 +35,9 @@ def postgres(monkeypatch):
     schema = f"test_{uuid4().hex}"
     admin = create_engine(parsed, hide_parameters=True)
     with admin.begin() as connection:
+        connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public"))
         connection.execute(text(f'CREATE SCHEMA "{schema}"'))
-    scoped_url = parsed.update_query_dict({"options": f"-csearch_path={schema}"})
+    scoped_url = parsed.update_query_dict({"options": f"-csearch_path={schema},public"})
     monkeypatch.setenv("SUPPORTFLOW_DATABASE_URL", scoped_url.render_as_string(hide_password=False))
     config = Settings(
         _env_file=None,

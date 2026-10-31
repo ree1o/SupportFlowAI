@@ -70,5 +70,20 @@ export type Activity = {
   created_at: string;
 };
 export type Timeline<T> = { items: T[]; next_after_version: number | null };
+export type RelatedResult = {
+  id: string;
+  title: string;
+  status: Status;
+  priority: Priority;
+  category_name: string | null;
+  preview: string;
+  similarity: number;
+};
+export type RelatedTickets = {
+  model_version: string;
+  index_status: "pending" | "processing" | "ready" | "failed" | "stale" | "missing";
+  indexed_at: string | null;
+  items: RelatedResult[];
+};
 export const statuses: Status[] = ["open", "pending", "resolved", "closed"];
 export const priorities: Priority[] = ["low", "normal", "high", "urgent"];

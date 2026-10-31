@@ -1,6 +1,6 @@
 # Incremental release roadmap
 
-Approved scope, 2026-10-31. M1-M7 are complete; the next milestone requires separate
+Approved scope, 2026-10-31. M1-M8 are complete; the next milestone requires separate
 approval.
 Each release has a self-contained demonstration. Completion never authorizes the next
 milestone. Complexity estimates are relative, not delivery-date commitments.
@@ -70,7 +70,22 @@ confirms or rejects a proposal and manages the resulting incident.
   limited to the fixture and do not claim production accuracy.
 - No embeddings or generative provider. Similar symptoms are not proof of a shared cause.
 
-## Release 1.0 - Portfolio-ready hardening (L; later)
+## M8 - Evaluated semantic retrieval (completed)
+
+Independent demo: staff searches for a ticket with a differently worded but related
+problem, reviews the similarity signal, and sees only tickets permitted by current
+organization and assignment rules.
+
+- CPU-only multilingual FastEmbed ONNX model with immutable artifact revision, local cache,
+  explicit setup, PII/credential pattern masking, and no external inference requests.
+- pgvector `vector(384)` storage in PostgreSQL 16, tenant-composite constraints, exact
+  cosine ranking, transactional outbox indexing, digest-based staleness protection, retry
+  state, and bounded existing-ticket backfill.
+- Separate held-out bilingual retrieval evaluation against simple lexical and an M7 lexical
+  adaptation. Its synthetic results are documented with counts, timings, storage, and limits
+  in [semantic retrieval](semantic-retrieval.md); they do not change M7 behavior.
+
+## Release 1.0 / M9 - Portfolio-ready hardening (L; later)
 
 Independent demo: complete core workflows, recovery and evaluation evidence on a
 reproducible release image.
