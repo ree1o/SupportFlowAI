@@ -2,10 +2,14 @@ import pytest
 from alembic import command
 from alembic.migration import MigrationContext
 from fastapi.testclient import TestClient
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect, select, text
 from sqlalchemy.exc import IntegrityError
 
+from app.identity.models import Membership, Organization, Role, User
 from app.main import create_app
+from app.semantic.models import MODEL_VERSION, TicketEmbedding
+from app.tenancy import set_tenant_context
+from app.tickets.models import Contact, Message, Ticket, Visibility
 
 pytestmark = pytest.mark.integration
 
@@ -23,7 +27,7 @@ def test_migration_upgrade_downgrade_and_readiness(postgres):
         assert client.get("/api/health/ready").status_code == 200
     with database.engine.connect() as connection:
         assert MigrationContext.configure(connection).get_current_heads() == (
-            "0008_semantic_retrieval",
+            "0009_release_hardening",
         )
     assert set(inspect(database.engine).get_table_names()) == {
         "alembic_version",
@@ -146,3 +150,94 @@ def test_sessions_are_independent_and_cleanup_rolls_back(postgres):
         # No commit: dependency cleanup must roll back, even on a successful return.
     with database.session() as session:
         assert session.scalar(text("SELECT to_regclass('m1_uncommitted_probe')")) is None
+
+
+def test_m9_upgrade_from_m8_preserves_tenant_data_and_enforces_rls(postgres, runtime_database):
+    _, database, alembic = postgres
+    with database.session() as session, session.begin():
+        organization = Organization(name="M9 upgrade fixture", slug="m9-upgrade-fixture")
+        user = User(
+            email="m9-upgrade@example.com",
+            full_name="M9 Upgrade Fixture",
+            password_hash="test-only-hash",
+        )
+        session.add_all((organization, user))
+        session.flush()
+        membership = Membership(
+            organization_id=organization.id,
+            user_id=user.id,
+            role=Role.OWNER,
+        )
+        contact = Contact(
+            organization_id=organization.id,
+            name="Synthetic migration contact",
+        )
+        session.add_all((membership, contact))
+        session.flush()
+        ticket = Ticket(
+            organization_id=organization.id,
+            requester_contact_id=contact.id,
+            category_id=None,
+            assigned_membership_id=None,
+            created_by_membership_id=membership.id,
+            created_by_customer_access_id=None,
+            created_by_integration_source_id=None,
+            title="Synthetic migration ticket",
+            status="open",
+            priority="normal",
+            version=1,
+        )
+        session.add(ticket)
+        session.flush()
+        message = Message(
+            organization_id=organization.id,
+            ticket_id=ticket.id,
+            author_membership_id=membership.id,
+            author_customer_access_id=None,
+            author_integration_source_id=None,
+            author_name="M9 Upgrade Fixture",
+            visibility=Visibility.PUBLIC,
+            body="Synthetic migration message",
+            ticket_version=1,
+        )
+        embedding = TicketEmbedding(
+            organization_id=organization.id,
+            ticket_id=ticket.id,
+            model_version=MODEL_VERSION,
+            content_digest="a" * 64,
+            source_version=1,
+            is_current=True,
+            status="pending",
+        )
+        session.add_all((message, embedding))
+        session.flush()
+        organization_id, ticket_id, embedding_id = organization.id, ticket.id, embedding.id
+
+    command.downgrade(alembic, "0008_semantic_retrieval")
+    with database.session() as session:
+        assert session.get(Ticket, ticket_id) is not None
+        assert session.get(TicketEmbedding, embedding_id) is not None
+
+    command.upgrade(alembic, "head")
+    with database.engine.connect() as connection:
+        assert connection.scalar(
+            text(
+                "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class "
+                "WHERE oid='tickets'::regclass"
+            )
+        )
+        assert connection.scalar(
+            text(
+                "SELECT relrowsecurity AND relforcerowsecurity FROM pg_class "
+                "WHERE oid='ticket_embeddings'::regclass"
+            )
+        )
+
+    _, runtime_db = runtime_database
+    with runtime_db.session_factory() as session:
+        set_tenant_context(session, organization_id)
+        assert session.scalar(select(Ticket.id).where(Ticket.id == ticket_id)) == ticket_id
+        assert (
+            session.scalar(select(TicketEmbedding.id).where(TicketEmbedding.id == embedding_id))
+            == embedding_id
+        )

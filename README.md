@@ -2,7 +2,7 @@
 
 Intelligent Customer Support & Incident Management Platform.
 
-**Current implementation: M8 - Evaluated Semantic Ticket Retrieval.**
+**Current implementation: M9 - Release Hardening and Portfolio Evidence.**
 A working staff helpdesk extends the verified identity and application baseline.
 The staff helpdesk now supports customer self-service and recoverable asynchronous
 notifications, SLA snapshots, deadline monitoring, staff breach alerts, operational reports,
@@ -27,8 +27,13 @@ capability infers a root cause or requires a hosted AI provider.
 - [Signed inbound webhook integration guide](docs/integrations.md)
 - [Manual incidents and deterministic Incident Radar](docs/incident-radar.md)
 - [Semantic retrieval, privacy and evaluation](docs/semantic-retrieval.md)
+- [Security hardening, RLS, limits, and retention](docs/security-hardening.md)
+- [Backup and recovery runbook](docs/backup-recovery.md)
+- [Reproducible performance measurements and limitations](docs/performance-report.md)
+- [M9 local verification record and limitations](docs/m9-verification.md)
+- [Release checklist and demo walkthrough](docs/release-readiness.md)
 
-Basic authorization and tenant isolation are implemented. PostgreSQL RLS is deferred to 1.0.
+Application authorization and explicit tenant filtering are reinforced with PostgreSQL RLS.
 
 ## Implemented baseline
 
@@ -51,6 +56,9 @@ Basic authorization and tenant isolation are implemented. PostgreSQL RLS is defe
   sources, atomic idempotent webhook receipts, and integration provenance in ticket history.
 - Local CPU multilingual sentence embeddings, PostgreSQL pgvector exact search, durable
   tenant-scoped indexing, and a held-out lexical comparison for staff related-ticket lookup.
+- Forced PostgreSQL RLS for tenant-owned tables, a restricted runtime role, transaction-local
+  tenant context, targeted Redis rate limits, and bounded operational retention.
+- PostgreSQL backup/restore runbook and a deployment readiness checklist.
 - Exact Python dependency pins with hash locks and npm package lock.
 - Local Docker Compose startup ordering and GitHub Actions validation.
 
@@ -71,6 +79,9 @@ Do not overwrite an existing `.env`. The defaults are local demo credentials onl
 The first build downloads images/packages and needs internet access. PostgreSQL uses
 a persistent named volume. Compose waits for database health, runs Alembic once, and
 starts the API only after migration success. No local Python/Node install is required.
+The API and worker connect as the restricted `supportflow_runtime` role; the migration
+service uses the configured local initialization account. Replace the disposable runtime
+password before using anything outside a local demo.
 
 Open:
 
@@ -167,7 +178,7 @@ npm.cmd ci
 npm.cmd run dev
 ```
 
-The root `.env` URL uses `localhost:15432`. Compose uses internal `db:5432`.
+The root `.env` URL uses `127.0.0.1:15432`. Compose uses internal `db:5432`.
 If using an existing PostgreSQL installation instead, create a dedicated development
 database/account and edit `.env` accordingly. Never use an important database for tests.
 Do not run the host API and Compose API on port 8000 simultaneously.
@@ -187,6 +198,7 @@ Do not run the host API and Compose API on port 8000 simultaneously.
 | TEST_DATABASE_URL | Dedicated integration database ending in `_test` |
 | SUPPORTFLOW_COOKIE_SECURE | `true` by default; Compose explicitly sets `false` for local HTTP |
 | SUPPORTFLOW_ALLOWED_ORIGINS | JSON array of exact trusted origins; local UI origins by default |
+| SUPPORTFLOW_FORWARDED_ALLOW_IPS | Uvicorn trusted proxy IPs/CIDRs; loopback only by default, never use `*` |
 | SUPPORTFLOW_SESSION_TTL_SECONDS | 28800 (8 hours) |
 | SUPPORTFLOW_SESSION_ABSOLUTE_SECONDS | 604800 (7 days); renewal cannot exceed this original limit |
 | SUPPORTFLOW_REDIS_URL | `redis://redis:6379/0` in Compose |
@@ -198,6 +210,9 @@ Do not run the host API and Compose API on port 8000 simultaneously.
 | SUPPORTFLOW_SEMANTIC_INDEX_BATCH_SIZE | 50 tickets per manager backfill batch (bounded to 1-200) |
 | SUPPORTFLOW_SEMANTIC_INDEX_MAX_ATTEMPTS | 5 retry attempts before visible failed state |
 | SUPPORTFLOW_SEMANTIC_MIN_SIMILARITY | 0.35 cosine similarity display floor; a relevance signal, not a cause claim |
+| SUPPORTFLOW_RUNTIME_DB_PASSWORD | Local-only non-owner API/worker role password; production secret-store value required |
+| SUPPORTFLOW_RETENTION_BATCH_SIZE | 500 rows per table family and tenant cleanup batch (maximum 5,000) |
+| SUPPORTFLOW_*_RETENTION_DAYS | Retention periods documented in [security hardening](docs/security-hardening.md) |
 
 Environment variables override `.env`. URL-encode special characters in URL credentials.
 Compose's interpolated local password should be URL-safe; do not paste unescaped reserved
@@ -243,7 +258,7 @@ from the repository root (default local credentials):
 
 ```powershell
 docker compose exec db createdb -U supportflow supportflow_test
-$env:TEST_DATABASE_URL = 'postgresql+psycopg://supportflow:supportflow_dev_only@localhost:15432/supportflow_test'
+$env:TEST_DATABASE_URL = 'postgresql+psycopg://supportflow:supportflow_dev_only@127.0.0.1:15432/supportflow_test'
 Set-Location backend
 ..\.venv\Scripts\pytest.exe
 ```
@@ -251,6 +266,8 @@ Set-Location backend
 Create the test database once; an already-existing error is harmless only if it is the
 intended disposable database. Tests refuse names not ending `_test` and use separate
 random schemas per test; migration round-trips never touch the development schema.
+On Windows, use `127.0.0.1` for the host-published PostgreSQL port so clients do not
+wait on an unavailable IPv6 loopback address.
 
 Frontend, from `frontend`:
 

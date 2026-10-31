@@ -31,3 +31,4 @@ secrets/
 .mypy_cache/
 test-results/
 playwright-report/
+backups/

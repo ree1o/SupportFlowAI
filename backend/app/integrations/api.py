@@ -1,7 +1,7 @@
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Header, Query, Request, Response
+from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from starlette.concurrency import run_in_threadpool
 
 from app.errors import AppError
@@ -14,6 +14,7 @@ from app.integrations.schemas import (
     SourceUpdate,
     SourceView,
 )
+from app.rate_limit import limited
 
 router = APIRouter(
     prefix="/api/organizations/{organization_id}/integrations", tags=["integrations"]
@@ -73,7 +74,7 @@ def list_receipts(
     return service.receipts(db, auth, organization_id, source_id, status, page, page_size)
 
 
-@inbound_router.post("/{source_id}/events")
+@inbound_router.post("/{source_id}/events", dependencies=[Depends(limited("webhook", 120, 60))])
 async def receive_event(
     source_id: UUID,
     request: Request,

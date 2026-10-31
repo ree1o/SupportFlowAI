@@ -28,6 +28,7 @@ from app.identity import security
 from app.identity.api import DB, Auth, WriteAuth, csrf
 from app.identity.schemas import Input
 from app.identity.service import AuthContext, authenticate
+from app.rate_limit import limited
 from app.tickets.models import Status
 
 router = APIRouter(prefix="/api/customer", tags=["customer portal"])
@@ -67,26 +68,42 @@ def optional_auth(
 OptionalAuth = Annotated[AuthContext | None, Depends(optional_auth)]
 
 
-@router.post("/register", status_code=202, response_model=Accepted, dependencies=[Depends(csrf)])
+@router.post(
+    "/register",
+    status_code=202,
+    response_model=Accepted,
+    dependencies=[Depends(csrf), Depends(limited("customer-register", 5, 3600))],
+)
 def register(data: CustomerRegister, request: Request, db: DB) -> Accepted:
     service.register_customer(db, request.app.state.settings, data)
     return Accepted(message="If your details are eligible, an email with next steps has been sent.")
 
 
-@router.post("/verify", status_code=204, dependencies=[Depends(csrf)])
+@router.post(
+    "/verify",
+    status_code=204,
+    dependencies=[Depends(csrf), Depends(limited("customer-verify", 10, 900))],
+)
 def verify(data: TokenInput, request: Request, db: DB) -> None:
     service.verify_customer(db, request.app.state.settings, data.token)
 
 
 @router.post(
-    "/password-recovery", status_code=202, response_model=Accepted, dependencies=[Depends(csrf)]
+    "/password-recovery",
+    status_code=202,
+    response_model=Accepted,
+    dependencies=[Depends(csrf), Depends(limited("password-recovery", 5, 3600))],
 )
 def recovery(data: RecoveryInput, request: Request, db: DB) -> Accepted:
     service.request_recovery(db, request.app.state.settings, data.email)
     return Accepted(message="If an eligible account exists, a recovery email has been sent.")
 
 
-@router.post("/password-recovery/complete", status_code=204, dependencies=[Depends(csrf)])
+@router.post(
+    "/password-recovery/complete",
+    status_code=204,
+    dependencies=[Depends(csrf), Depends(limited("recovery-complete", 10, 900))],
+)
 def recovery_complete(data: CustomerRegisterToken, request: Request, db: DB) -> None:
     service.complete_recovery(
         db,
@@ -96,7 +113,11 @@ def recovery_complete(data: CustomerRegisterToken, request: Request, db: DB) -> 
     )
 
 
-@router.post("/invitations/accept", response_model=Accepted, dependencies=[Depends(csrf)])
+@router.post(
+    "/invitations/accept",
+    response_model=Accepted,
+    dependencies=[Depends(csrf), Depends(limited("invitation-accept", 10, 3600))],
+)
 def accept_invitation(
     data: InvitationAccept,
     request: Request,

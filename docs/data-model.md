@@ -4,7 +4,8 @@ M1 creates only the Alembic version table. M2 migration `0002_identity` adds use
 sessions, organizations and memberships. M3 migration `0003_tickets` adds contacts,
 categories, tickets, messages and audit_events. M4-M6 add customer access/jobs, SLA,
 and integrations as described below. M7 adds incident and deterministic Radar tables.
-M8 adds the semantic index described in [semantic-retrieval.md](semantic-retrieval.md);
+M8 adds the semantic index described in [semantic-retrieval.md](semantic-retrieval.md).
+M9 adds database policy/role configuration without adding business-domain tables;
 generative AI tables remain future designs.
 See [identity design](identity.md) and [ticket design](tickets.md) for implemented
 constraints, transactions, indexes and the current ER diagram.
@@ -18,6 +19,7 @@ constraints, transactions, indexes and the current ER diagram.
 | 0.2 / M6 | integration_sources, webhook_receipts; integration actor references on tickets, messages and audit_events |
 | 0.3 / M7 | incidents, incident_tickets, incident_events, radar_runs, radar_proposals, radar_proposal_tickets, radar_suppressions |
 | M8 | ticket_embeddings: local 384-dimensional vectors, source digest/version, model and retry/index state |
+| M9 | RLS policies and `supportflow_runtime` role; no new application domain tables |
 | 1.1 | knowledge_articles, article_revisions, knowledge_chunks, ai_runs, ai_suggestions, suggestion_feedback |
 
 ```mermaid

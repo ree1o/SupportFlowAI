@@ -19,6 +19,7 @@ from app.identity.schemas import (
     OrganizationView,
     Register,
 )
+from app.rate_limit import limited
 
 router = APIRouter(
     prefix="/api",
@@ -82,7 +83,10 @@ def get_csrf(request: Request, response: Response) -> CsrfView:
 
 
 @router.post(
-    "/auth/register", response_model=CurrentUser, status_code=201, dependencies=[Depends(csrf)]
+    "/auth/register",
+    response_model=CurrentUser,
+    status_code=201,
+    dependencies=[Depends(csrf), Depends(limited("staff-register", 30, 3600))],
 )
 def register(data: Register, request: Request, response: Response, db: DB) -> CurrentUser:
     result = service.register(
@@ -94,7 +98,11 @@ def register(data: Register, request: Request, response: Response, db: DB) -> Cu
     return session_response(request, response, db, result)
 
 
-@router.post("/auth/login", response_model=CurrentUser, dependencies=[Depends(csrf)])
+@router.post(
+    "/auth/login",
+    response_model=CurrentUser,
+    dependencies=[Depends(csrf), Depends(limited("login", 10, 900))],
+)
 def login(data: Credentials, request: Request, response: Response, db: DB) -> CurrentUser:
     result = service.login(
         db,

@@ -14,9 +14,14 @@ from app.tickets import models as ticket_models  # noqa: F401 -- register M3 met
 target_metadata = Base.metadata
 
 
+def migration_url() -> str:
+    settings = Settings()
+    return (settings.migration_database_url or settings.database_url).get_secret_value()
+
+
 def run_migrations_offline() -> None:
     context.configure(
-        url=Settings().database_url.get_secret_value(),
+        url=migration_url(),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -27,7 +32,7 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     engine = create_engine(
-        Settings().database_url.get_secret_value(),
+        migration_url(),
         poolclass=pool.NullPool,
         hide_parameters=True,
         connect_args={"connect_timeout": 5},

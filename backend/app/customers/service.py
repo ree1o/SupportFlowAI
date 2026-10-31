@@ -33,6 +33,12 @@ from app.identity.models import AuthSession, Membership, Organization, Role, Use
 from app.identity.schemas import normalize_email
 from app.identity.service import AuthContext, issue_session, organization_context, transaction
 from app.sla.service import snapshot_ticket
+from app.tenancy import (
+    set_account_token_context,
+    set_invitation_token_context,
+    set_tenant_context,
+    set_user_context,
+)
 from app.tickets.models import AuditEvent, Contact, Message, Priority, Status, Ticket, Visibility
 
 TOKEN_TTL = timedelta(hours=1)
@@ -85,6 +91,9 @@ def add_token(
     organization_id: UUID | None = None,
     contact_id: UUID | None = None,
 ) -> str:
+    set_user_context(db, user.id)
+    if organization_id is not None:
+        set_tenant_context(db, organization_id)
     db.execute(
         update(AccountToken)
         .where(
@@ -119,6 +128,7 @@ def register_customer(db: Session, settings: Settings, data) -> None:
         org = db.scalar(select(Organization).where(Organization.slug == data.organization_slug))
         contact = None
         if org is not None:
+            set_tenant_context(db, org.id)
             contacts = list(
                 db.scalars(
                     select(Contact).where(
@@ -160,6 +170,7 @@ def verify_customer(db: Session, settings: Settings, token: str) -> None:
         token = decrypt(settings, token)
     except Exception:
         raise AppError(400, "invalid_token", "Verification link is invalid or expired") from None
+    set_account_token_context(db, security.token_hash(token))
     with transaction(db, "Verification link is invalid or expired"):
         record = db.scalar(
             select(AccountToken)
@@ -170,9 +181,26 @@ def verify_customer(db: Session, settings: Settings, token: str) -> None:
                 AccountToken.revoked_at.is_(None),
                 AccountToken.expires_at > security.utcnow(),
             )
-            .with_for_update()
+            .execution_options(populate_existing=True)
         )
         if record is None or record.organization_id is None or record.contact_id is None:
+            raise AppError(400, "invalid_token", "Verification link is invalid or expired")
+        set_user_context(db, record.user_id)
+        set_tenant_context(db, record.organization_id)
+        record = db.scalar(
+            select(AccountToken)
+            .where(
+                AccountToken.id == record.id,
+                AccountToken.token_hash == security.token_hash(token),
+                AccountToken.purpose == "verify_customer",
+                AccountToken.used_at.is_(None),
+                AccountToken.revoked_at.is_(None),
+                AccountToken.expires_at > security.utcnow(),
+            )
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if record is None:
             raise AppError(400, "invalid_token", "Verification link is invalid or expired")
         user = db.scalar(select(User).where(User.id == record.user_id).with_for_update())
         if user is None or not user.is_active:
@@ -207,19 +235,33 @@ def request_recovery(db: Session, settings: Settings, email: str) -> None:
                 User.email == email, User.is_active.is_(True), User.email_verified_at.is_not(None)
             )
         )
-        if user is not None and db.scalar(
-            select(CustomerAccess.id)
-            .join(
-                Contact,
-                (Contact.organization_id == CustomerAccess.organization_id)
-                & (Contact.id == CustomerAccess.contact_id),
+        has_active_access = False
+        if user is not None:
+            set_user_context(db, user.id)
+            access_orgs = db.scalars(
+                select(CustomerAccess.organization_id).where(
+                    CustomerAccess.user_id == user.id, CustomerAccess.is_active.is_(True)
+                )
             )
-            .where(
-                CustomerAccess.user_id == user.id,
-                CustomerAccess.is_active.is_(True),
-                Contact.is_active.is_(True),
-            )
-        ):
+            for organization_id in access_orgs:
+                set_tenant_context(db, organization_id)
+                if db.scalar(
+                    select(CustomerAccess.id)
+                    .join(
+                        Contact,
+                        (Contact.organization_id == CustomerAccess.organization_id)
+                        & (Contact.id == CustomerAccess.contact_id),
+                    )
+                    .where(
+                        CustomerAccess.user_id == user.id,
+                        CustomerAccess.organization_id == organization_id,
+                        CustomerAccess.is_active.is_(True),
+                        Contact.is_active.is_(True),
+                    )
+                ):
+                    has_active_access = True
+                    break
+        if user is not None and has_active_access:
             raw = add_token(db, settings, user, "password_recovery", security.utcnow() + TOKEN_TTL)
             url = f"{settings.public_app_url}/customer/recover?token={encrypt(settings, raw)}"
             add_email(
@@ -237,6 +279,7 @@ def complete_recovery(db: Session, settings: Settings, token: str, password: str
         token = decrypt(settings, token)
     except Exception:
         raise AppError(400, "invalid_token", "Recovery link is invalid or expired") from None
+    set_account_token_context(db, security.token_hash(token))
     encoded = security.hasher.hash(password)
     with transaction(db, "Recovery link is invalid or expired"):
         record = db.scalar(
@@ -248,7 +291,23 @@ def complete_recovery(db: Session, settings: Settings, token: str, password: str
                 AccountToken.revoked_at.is_(None),
                 AccountToken.expires_at > security.utcnow(),
             )
+            .execution_options(populate_existing=True)
+        )
+        if record is None:
+            raise AppError(400, "invalid_token", "Recovery link is invalid or expired")
+        set_user_context(db, record.user_id)
+        record = db.scalar(
+            select(AccountToken)
+            .where(
+                AccountToken.id == record.id,
+                AccountToken.token_hash == security.token_hash(token),
+                AccountToken.purpose == "password_recovery",
+                AccountToken.used_at.is_(None),
+                AccountToken.revoked_at.is_(None),
+                AccountToken.expires_at > security.utcnow(),
+            )
             .with_for_update()
+            .execution_options(populate_existing=True)
         )
         if record is None:
             raise AppError(400, "invalid_token", "Recovery link is invalid or expired")
@@ -333,17 +392,30 @@ def accept_invitation(
     except Exception:
         raise AppError(400, "invalid_token", "Invitation is invalid or expired") from None
     token_hash = security.token_hash(raw)
+    set_invitation_token_context(db, token_hash)
     now = security.utcnow()
     with transaction(db, "Invitation is invalid or expired"):
+        # A token policy permits this exact read before tenant context exists.
+        # Lock only after setting tenant context, because row locks also require
+        # an UPDATE policy and the tenant policy must remain fail-closed.
+        invite = db.scalar(
+            select(CustomerInvitation).where(CustomerInvitation.token_hash == token_hash)
+        )
+        if invite is None:
+            raise AppError(400, "invalid_token", "Invitation is invalid or expired")
+        set_tenant_context(db, invite.organization_id)
         invite = db.scalar(
             select(CustomerInvitation)
             .where(
+                CustomerInvitation.id == invite.id,
+                CustomerInvitation.organization_id == invite.organization_id,
                 CustomerInvitation.token_hash == token_hash,
                 CustomerInvitation.accepted_at.is_(None),
                 CustomerInvitation.revoked_at.is_(None),
                 CustomerInvitation.expires_at > now,
             )
             .with_for_update()
+            .execution_options(populate_existing=True)
         )
         if invite is None:
             raise AppError(400, "invalid_token", "Invitation is invalid or expired")
@@ -508,6 +580,9 @@ def retry_failed_job(db: Session, auth: AuthContext, organization_id: UUID, job_
 
 
 def active_access(db: Session, auth: AuthContext, organization_id: UUID | None = None):
+    set_user_context(db, auth.user.id)
+    if organization_id is not None:
+        set_tenant_context(db, organization_id)
     query = (
         select(CustomerAccess, Organization)
         .join(Organization, Organization.id == CustomerAccess.organization_id)
@@ -524,7 +599,25 @@ def active_access(db: Session, auth: AuthContext, organization_id: UUID | None =
     )
     if organization_id is not None:
         query = query.where(CustomerAccess.organization_id == organization_id)
-    return list(db.execute(query.order_by(Organization.name, Organization.id)))
+        return list(db.execute(query.order_by(Organization.name, Organization.id)))
+
+    organization_ids = list(
+        db.scalars(
+            select(CustomerAccess.organization_id)
+            .where(CustomerAccess.user_id == auth.user.id, CustomerAccess.is_active.is_(True))
+            .order_by(CustomerAccess.organization_id)
+        )
+    )
+    rows: list[tuple[CustomerAccess, Organization]] = []
+    for tenant_id in organization_ids:
+        set_tenant_context(db, tenant_id)
+        result = db.execute(
+            query.where(CustomerAccess.organization_id == tenant_id).order_by(
+                Organization.name, Organization.id
+            )
+        )
+        rows.extend((access, organization) for access, organization in result)
+    return rows
 
 
 def customer_profile(db: Session, auth: AuthContext) -> CustomerProfile:

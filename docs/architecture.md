@@ -1,13 +1,14 @@
-# Architecture — approved direction, M7 implementation boundary
+# Architecture — approved direction and M9 implementation
 
 Status: approved direction with release adjustments, 2026-10-31.
 This document distinguishes intended architecture from implemented functionality.
-M1–M7 are implemented. See [identity design](identity.md), [ticket design](tickets.md),
+M1–M9 are implemented. See [identity design](identity.md), [ticket design](tickets.md),
 and [customer portal design](customer-portal.md) for current endpoints, permissions,
 security, transaction rules and limitations. SLA semantics are documented in [sla.md](sla.md);
 inbound signatures and receipts are documented in [integrations.md](integrations.md),
 and incidents in [incident-radar.md](incident-radar.md). M8 semantic retrieval is
-documented in [semantic-retrieval.md](semantic-retrieval.md); generative AI remains later.
+documented in [semantic-retrieval.md](semantic-retrieval.md); release hardening is in
+[security-hardening.md](security-hardening.md). Generative AI remains optional M10.
 
 ## Product and scope
 
@@ -29,7 +30,7 @@ English demo data, one region, modest volumes, and one developer are initial ass
 | Concurrency | Tickets have a required expected version; stale writes return 409. Short row locks make version checks and writes atomic. |
 | Authentication (M2) | Opaque server-side sessions, hashed credentials, secure cookies, CSRF protection. No mandatory JWT. |
 | Isolation (M2 onward) | Explicit organization-scoped queries, authorization tests, and composite tenant foreign keys. |
-| RLS | Defense in depth in release 1.0. Not a substitute for application authorization. Separate migration/runtime privileges then. |
+| RLS (M9) | Forced RLS for tenant tables, non-owner runtime role, transaction-local context; application authorization remains authoritative. |
 | Queue (0.2) | Celery + Redis dispatch PostgreSQL outbox jobs; outbox and job rows remain authoritative and recoverable. |
 | Frontend | React + TypeScript + Vite. Same-origin `/api` proxy; polling before SSE/WebSockets. |
 | Incident correlation (0.3) | Bounded deterministic lexical rules and human review; no automatic root-cause claim. |
@@ -42,7 +43,7 @@ Async network I/O may later benefit bounded outgoing delivery batches. Blocking 
 operations use synchronous routes and must not be placed directly on the event loop.
 CPU-heavy embeddings run in workers, not API requests.
 
-## Current M8 deployment
+## Current M9 deployment
 
 ```mermaid
 flowchart LR
@@ -53,6 +54,8 @@ flowchart LR
     Worker[Celery worker + Beat] --> DB
     Worker --> Redis[(Redis broker)]
     Worker --> SMTP[Mailpit local SMTP]
+API --> RateLimit[Atomic Redis limits on sensitive routes]
+RateLimit --> Redis
     Worker --> Radar[Bounded incident detector]
     Worker --> Embed[Local ONNX embedding worker]
     Radar --> DB
@@ -153,9 +156,13 @@ Short shared organization locks keep ticket writes concurrent while serializing 
 against M2 membership changes; ticket row locks then guard version checks and mutations.
 Ticket, message, lifecycle timestamps and audit commit together. Database triggers reject
 message/audit updates and deletes. See [ticket design](tickets.md) for the implemented ER diagram.
-RLS is deliberately deferred to 1.0: runtime non-owner role, transaction-local tenant
-context, fail-closed missing context, worker coverage, and connection reuse tests.
-Do not admit real customer data before release hardening and a deployment review.
+M9 adds forced RLS on tenant-owned tables, fail-closed missing context, non-owner runtime
+role checks, scoped worker context, and connection-reuse tests. Global identity and
+outbox tables are deliberately outside tenant RLS because authentication and shared
+outbox polling span organizations; specific account/customer tables have own-user or
+hashed-token lookup policies. See [security hardening](security-hardening.md) for the
+full table matrix and residual shared-worker capability. Do not admit real customer
+data before a deployment review.
 
 In 0.2, business change + audit + outbox are one transaction. Publishing may repeat.
 Logical operation IDs, unique effects, expiring claims, bounded retries, recovery,

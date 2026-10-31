@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.errors import AppError
-from app.identity.models import Membership, Role, User
+from app.identity.models import Membership, Organization, Role, User
 from app.identity.security import utcnow
 from app.identity.service import AuthContext, organization_context, transaction
 from app.incidents.correlation import DETECTOR_VERSION, TicketText, candidate_groups
@@ -39,6 +39,7 @@ from app.incidents.schemas import (
     RadarRunView,
     TicketCandidate,
 )
+from app.tenancy import set_tenant_context
 from app.tickets.models import Category, Contact, Message, Status, Ticket, Visibility
 
 MAX_RUN_ATTEMPTS = 5
@@ -860,10 +861,17 @@ def reject_proposal(
     return result
 
 
-def process_detection_run(db: Session, run_id: UUID, settings: Settings) -> int:
+def process_detection_run(
+    db: Session, organization_id: UUID, run_id: UUID, settings: Settings
+) -> int:
     """Claim, compute and commit proposal rows with a durable retry lease."""
+    set_tenant_context(db, organization_id)
     with transaction(db, "Radar run could not be claimed"):
-        run = db.scalar(select(RadarRun).where(RadarRun.id == run_id).with_for_update())
+        run = db.scalar(
+            select(RadarRun)
+            .where(RadarRun.organization_id == organization_id, RadarRun.id == run_id)
+            .with_for_update()
+        )
         if run is None or run.status == "completed" or run.status == "failed":
             return 0
         now = utcnow()
@@ -882,6 +890,10 @@ def process_detection_run(db: Session, run_id: UUID, settings: Settings) -> int:
         run.failure_type = None
         org = run.organization_id
 
+    # The claim transaction above commits and therefore clears the
+    # transaction-local tenant setting. Re-establish it before every
+    # tenant-owned read/write phase.
+    set_tenant_context(db, org)
     try:
         tickets = _candidate_rows(db, org, settings)
         groups = candidate_groups(tickets, settings)
@@ -956,8 +968,13 @@ def process_detection_run(db: Session, run_id: UUID, settings: Settings) -> int:
             db.flush()
         return created
     except Exception as exc:
+        set_tenant_context(db, org)
         with transaction(db, "Radar run failure could not be recorded"):
-            run = db.scalar(select(RadarRun).where(RadarRun.id == run_id).with_for_update())
+            run = db.scalar(
+                select(RadarRun)
+                .where(RadarRun.organization_id == org, RadarRun.id == run_id)
+                .with_for_update()
+            )
             if run is not None and run.status == "running" and run.attempts == attempt:
                 run.failure_type = type(exc).__name__[:120]
                 run.locked_until = None
@@ -994,21 +1011,25 @@ def load_pending_run_ids(db: Session, limit: int = 50) -> list[UUID]:
     return ids
 
 
-def schedule_org_runs(db: Session, settings: Settings, limit: int = 25) -> list[UUID]:
+def schedule_org_runs(db: Session, settings: Settings, limit: int = 25) -> list[tuple[UUID, UUID]]:
     now = utcnow()
     cutoff = now - timedelta(hours=settings.radar_lookback_hours)
-    org_ids = list(
-        db.scalars(
-            select(Ticket.organization_id)
-            .where(Ticket.created_at >= cutoff, Ticket.status != Status.CLOSED)
-            .distinct()
-            .order_by(Ticket.organization_id)
-            .limit(limit)
-        )
-    )
-    created: list[UUID] = []
+    org_ids = list(db.scalars(select(Organization.id).order_by(Organization.id)))
+    created: list[tuple[UUID, UUID]] = []
     with db.begin_nested():
         for org in org_ids:
+            set_tenant_context(db, org)
+            has_tickets = db.scalar(
+                select(Ticket.id)
+                .where(
+                    Ticket.organization_id == org,
+                    Ticket.created_at >= cutoff,
+                    Ticket.status != Status.CLOSED,
+                )
+                .limit(1)
+            )
+            if has_tickets is None:
+                continue
             recent = db.scalar(
                 select(RadarRun.id)
                 .where(
@@ -1031,6 +1052,8 @@ def schedule_org_runs(db: Session, settings: Settings, limit: int = 25) -> list[
             )
             db.add(run)
             db.flush()
-            created.append(run.id)
+            created.append((org, run.id))
+            if len(created) >= limit:
+                break
     db.commit()
     return created

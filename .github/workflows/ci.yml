@@ -25,6 +25,7 @@ jobs:
     env:
       TEST_DATABASE_URL: postgresql+psycopg://supportflow:ci_password@localhost:5432/supportflow_test
       SUPPORTFLOW_DATABASE_URL: postgresql+psycopg://supportflow:ci_password@localhost:5432/supportflow_test
+      SUPPORTFLOW_RUNTIME_DB_PASSWORD: supportflow_runtime_test_only
     defaults:
       run:
         working-directory: backend

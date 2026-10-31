@@ -127,7 +127,7 @@ Run it from `backend` after creating the dedicated disposable test database and 
 the local model cache:
 
 ```powershell
-$env:TEST_DATABASE_URL = 'postgresql+psycopg://supportflow:supportflow_dev_only@localhost:15432/supportflow_test'
+$env:TEST_DATABASE_URL = 'postgresql+psycopg://supportflow:supportflow_dev_only@127.0.0.1:15432/supportflow_test'
 ..\.venv\Scripts\python.exe -m app.semantic.evaluation
 ```
 

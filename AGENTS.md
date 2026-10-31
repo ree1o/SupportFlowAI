@@ -8,7 +8,8 @@ scope and read any applicable nested instructions before editing.
 
 - Work only on an explicitly requested coding task or an approved milestone.
 - Never start the next milestone automatically. Completing or pushing one milestone
-  does not authorize the next one. M7 is complete; M8 requires separate approval.
+  does not authorize the next one. Follow the current approved release in the roadmap;
+  the next milestone always requires explicit approval.
 - Read `docs/architecture.md` and `docs/roadmap.md` when planning implementation.
 - Preserve the modular monolith, FastAPI, synchronous SQLAlchemy, and PostgreSQL
   decisions unless the user approves a change. Add infrastructure only for a concrete

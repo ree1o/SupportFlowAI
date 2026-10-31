@@ -315,13 +315,15 @@ def test_radar_proposal_rejection_change_confirmation_and_repeated_scans(
     first, second = create_pair(desk)
     from app.incidents import api as incident_api
 
-    monkeypatch.setattr(incident_api, "_dispatch_run", lambda _run_id: None)
+    monkeypatch.setattr(incident_api, "_dispatch_run", lambda *_args: None)
 
     def detect() -> list[dict]:
         queued = write(owner, "POST", f"{desk['root']}/radar/runs")
         assert queued.status_code == 202, queued.text
         with desk["db"].session() as db:
-            service.process_detection_run(db, UUID(queued.json()["id"]), desk["settings"])
+            service.process_detection_run(
+                db, UUID(desk["org"]), UUID(queued.json()["id"]), desk["settings"]
+            )
         return owner.get(f"/api{desk['root']}/radar/proposals?status=pending").json()["items"]
 
     proposals = detect()
@@ -427,7 +429,7 @@ def test_worker_failure_is_recorded_and_retryable(incident_desk, monkeypatch):
     create_pair(desk)
     from app.incidents import api as incident_api
 
-    monkeypatch.setattr(incident_api, "_dispatch_run", lambda _run_id: None)
+    monkeypatch.setattr(incident_api, "_dispatch_run", lambda *_args: None)
     run_response = write(owner, "POST", f"{desk['root']}/radar/runs")
     run_id = UUID(run_response.json()["id"])
     original = service._candidate_rows
@@ -442,14 +444,14 @@ def test_worker_failure_is_recorded_and_retryable(incident_desk, monkeypatch):
 
     monkeypatch.setattr(service, "_candidate_rows", fail_once)
     with desk["db"].session() as db, pytest.raises(RuntimeError):
-        service.process_detection_run(db, run_id, desk["settings"])
+        service.process_detection_run(db, UUID(desk["org"]), run_id, desk["settings"])
     with desk["db"].session() as db:
         run = db.get(RadarRun, run_id)
         assert run is not None and run.status == "pending"
         assert run.attempts == 1 and run.failure_type == "RuntimeError"
         run.available_at = utcnow()
         db.commit()
-        assert service.process_detection_run(db, run_id, desk["settings"]) == 1
+        assert service.process_detection_run(db, UUID(desk["org"]), run_id, desk["settings"]) == 1
         run = db.get(RadarRun, run_id)
         assert run is not None and run.status == "completed"
 
@@ -460,7 +462,7 @@ def test_concurrent_detection_delivery_processes_run_once(incident_desk, monkeyp
     create_pair(desk)
     from app.incidents import api as incident_api
 
-    monkeypatch.setattr(incident_api, "_dispatch_run", lambda _run_id: None)
+    monkeypatch.setattr(incident_api, "_dispatch_run", lambda *_args: None)
     run = write(owner, "POST", f"{desk['root']}/radar/runs").json()
     run_id = UUID(run["id"])
     original = service._candidate_rows
@@ -477,7 +479,7 @@ def test_concurrent_detection_delivery_processes_run_once(incident_desk, monkeyp
 
     def run_once():
         with desk["db"].session() as db:
-            return service.process_detection_run(db, run_id, desk["settings"])
+            return service.process_detection_run(db, UUID(desk["org"]), run_id, desk["settings"])
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         first = pool.submit(run_once)

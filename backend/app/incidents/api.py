@@ -2,7 +2,7 @@ import logging
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
 from app.identity.api import DB, Auth, WriteAuth
 from app.incidents import service
@@ -22,6 +22,7 @@ from app.incidents.schemas import (
     RadarRunPage,
     RadarRunView,
 )
+from app.rate_limit import limited
 
 logger = logging.getLogger("supportflow.incidents")
 router = APIRouter(prefix="/api/organizations/{organization_id}", tags=["incidents and radar"])
@@ -29,18 +30,23 @@ Page = Annotated[int, Query(ge=1, le=10000)]
 Size = Annotated[int, Query(ge=1, le=100)]
 
 
-@router.post("/radar/runs", response_model=RadarRunView, status_code=202)
+@router.post(
+    "/radar/runs",
+    response_model=RadarRunView,
+    status_code=202,
+    dependencies=[Depends(limited("radar-trigger", 5, 900))],
+)
 def trigger_radar(organization_id: UUID, auth: WriteAuth, db: DB) -> RadarRunView:
     run = service.queue_run(db, auth, organization_id)
-    _dispatch_run(run.id)
+    _dispatch_run(organization_id, run.id)
     return run
 
 
-def _dispatch_run(run_id: UUID) -> None:
+def _dispatch_run(organization_id: UUID, run_id: UUID) -> None:
     try:
         from app.jobs import detect_incident_run
 
-        detect_incident_run.delay(str(run_id))
+        detect_incident_run.delay(str(organization_id), str(run_id))
     except Exception as exc:
         # The database run remains pending; Beat recovery dispatches it after broker recovery.
         logger.warning(
@@ -58,7 +64,7 @@ def radar_runs(
 @router.post("/radar/runs/{run_id}/retry", response_model=RadarRunView, status_code=202)
 def retry_radar_run(organization_id: UUID, run_id: UUID, auth: WriteAuth, db: DB) -> RadarRunView:
     result = service.retry_run(db, auth, organization_id, run_id)
-    _dispatch_run(run_id)
+    _dispatch_run(organization_id, run_id)
     return result
 
 

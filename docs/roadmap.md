@@ -1,7 +1,7 @@
 # Incremental release roadmap
 
-Approved scope, 2026-10-31. M1-M8 are complete; the next milestone requires separate
-approval.
+Approved scope, 2026-10-31. M1-M8 were completed before M9; M9 is the current release
+hardening milestone. M10 requires separate approval.
 Each release has a self-contained demonstration. Completion never authorizes the next
 milestone. Complexity estimates are relative, not delivery-date commitments.
 
@@ -85,7 +85,7 @@ organization and assignment rules.
   adaptation. Its synthetic results are documented with counts, timings, storage, and limits
   in [semantic retrieval](semantic-retrieval.md); they do not change M7 behavior.
 
-## Release 1.0 / M9 - Portfolio-ready hardening (L; later)
+## Release 1.0 / M9 - Portfolio-ready hardening (L; local verification complete, CI pending)
 
 Independent demo: complete core workflows, recovery and evaluation evidence on a
 reproducible release image.
@@ -99,7 +99,7 @@ reproducible release image.
 - No performance claims without measured results. Production deployment target needs
   a separate decision.
 
-## Release 1.1 - Knowledge base and grounded AI Copilot (L; later)
+## Release 1.1 / M10 - Knowledge base and grounded AI Copilot (L; later, not approved)
 
 Independent demo: a published knowledge revision produces a human-reviewable draft
 with verifiable citations; disabled/unavailable providers leave manual workflows usable.
@@ -114,7 +114,8 @@ with verifiable citations; disabled/unavailable providers leave manual workflows
 
 Critical path: M1 -> M2 -> M3 -> M4 customer portal/durable work -> M5 SLA -> M6
 integrations -> M7 Incident Radar -> M8 evaluated semantic search -> M9 hardening ->
-M10 AI Copilot. Only explicitly approved scope may be built.
+M10 AI Copilot. M9 remains pending until its pushed GitHub Actions checks pass. M10 is
+not approved; only explicitly approved scope may be built.
 
 No billing, inbound email ticket creation, uploads, business-hours calendars,
 configurable roles, generic workflow builder, Kafka, Kubernetes, or microservices in

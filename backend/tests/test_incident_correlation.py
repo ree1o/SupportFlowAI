@@ -171,3 +171,22 @@ def test_multilingual_and_short_descriptions_are_safe(settings):
         ),
     ]
     assert candidate_groups(same_contact, settings) == []
+
+
+def test_candidate_evidence_uses_original_indexes_after_unrelated_tickets(settings):
+    records = [
+        {"title": "Billing invoice export", "body": "Download the monthly invoice."},
+        {"title": "Profile display settings", "body": "Update the account profile."},
+        {"title": "Payment processor timeout", "body": "Card transaction gateway timeout."},
+        {"title": "Payment gateway timeout", "body": "Card transaction processor timeout."},
+    ]
+    tickets = [
+        _ticket(settings, record, False, index, index) for index, record in enumerate(records)
+    ]
+    groups = candidate_groups(tickets, settings)
+    assert len(groups) == 1
+    assert set(groups[0].ticket_ids) == {tickets[2].id, tickets[3].id}
+    assert groups[0].evidence["pair_signals"][0]["ticket_ids"] == [
+        str(tickets[2].id),
+        str(tickets[3].id),
+    ]

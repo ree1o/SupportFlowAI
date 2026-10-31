@@ -13,7 +13,16 @@ class JsonFormatter(logging.Formatter):
             "event": record.getMessage(),
         }
         # Deliberate allowlist: never serialize request objects, credentials, or raw exceptions.
-        for key in ("request_id", "method", "route", "status_code", "duration_ms", "error_type"):
+        for key in (
+            "request_id",
+            "method",
+            "route",
+            "status_code",
+            "duration_ms",
+            "error_type",
+            "database_error_code",
+            "database_constraint",
+        ):
             if hasattr(record, key):
                 entry[key] = getattr(record, key)
         return json.dumps(entry, ensure_ascii=False)

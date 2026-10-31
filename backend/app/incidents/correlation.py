@@ -242,6 +242,7 @@ def _make_group(
     ]
     input_fingerprint = _digest(inputs)
     distinct_contacts = len({ticket.requester_contact_id for ticket in tickets})
+    ticket_by_index = dict(zip(indexes, tickets, strict=True))
     evidence: dict[str, object] = {
         "detector_version": DETECTOR_VERSION,
         "rule": "complete-link significant-term overlap with distinct requesters",
@@ -256,7 +257,7 @@ def _make_group(
         "ticket_refs": [str(ticket_id) for ticket_id in group_ids],
         "pair_signals": [
             {
-                "ticket_ids": [str(tickets[index].id) for index in pair],
+                "ticket_ids": [str(ticket_by_index[index].id) for index in pair],
                 "shared_terms": list(edges[pair].shared_terms),
                 "category_match": edges[pair].category_match,
                 "minutes_apart": edges[pair].minutes_apart,

@@ -7,12 +7,13 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.customers.models import BackgroundJob, OutboxEvent
 from app.errors import AppError
-from app.identity.models import Membership, Role
+from app.identity.models import Membership, Organization, Role
 from app.identity.security import utcnow
 from app.identity.service import AuthContext, organization_context, transaction
 from app.semantic.embedding import content_digest, embedding_text, get_local_embedder
 from app.semantic.models import MODEL_VERSION, TicketEmbedding
 from app.semantic.schemas import IndexingBatch, RelatedTicket, RelatedTickets
+from app.tenancy import set_tenant_context
 from app.tickets.models import Category, Message, Ticket, Visibility
 from app.tickets.service import manager
 
@@ -284,33 +285,40 @@ def backfill(db: Session, auth: AuthContext, org: UUID, settings: Settings) -> I
 
 
 def schedule_missing(db: Session, settings: Settings, limit: int = 50) -> int:
-    rows = db.execute(
-        select(Ticket.organization_id, Ticket.id, Ticket.title, Message.body, Ticket.version)
-        .join(
-            Message,
-            and_(
-                Message.organization_id == Ticket.organization_id,
-                Message.ticket_id == Ticket.id,
-                Message.ticket_version == 1,
-                Message.visibility == Visibility.PUBLIC,
-            ),
-        )
-        .outerjoin(
-            TicketEmbedding,
-            and_(
-                TicketEmbedding.organization_id == Ticket.organization_id,
-                TicketEmbedding.ticket_id == Ticket.id,
-                TicketEmbedding.model_version == MODEL_VERSION,
-                TicketEmbedding.is_current.is_(True),
-            ),
-        )
-        .where(TicketEmbedding.id.is_(None))
-        .order_by(Ticket.created_at, Ticket.id)
-        .limit(limit)
-    ).all()
+    if limit < 1:
+        return 0
     count = 0
-    for org, ticket_id, _, _, _ in rows:
-        count += int(enqueue_ticket(db, org, ticket_id))
+    organization_ids = list(db.scalars(select(Organization.id).order_by(Organization.id)))
+    for org in organization_ids:
+        set_tenant_context(db, org)
+        rows = db.scalars(
+            select(Ticket.id)
+            .join(
+                Message,
+                and_(
+                    Message.organization_id == Ticket.organization_id,
+                    Message.ticket_id == Ticket.id,
+                    Message.ticket_version == 1,
+                    Message.visibility == Visibility.PUBLIC,
+                ),
+            )
+            .outerjoin(
+                TicketEmbedding,
+                and_(
+                    TicketEmbedding.organization_id == Ticket.organization_id,
+                    TicketEmbedding.ticket_id == Ticket.id,
+                    TicketEmbedding.model_version == MODEL_VERSION,
+                    TicketEmbedding.is_current.is_(True),
+                ),
+            )
+            .where(Ticket.organization_id == org, TicketEmbedding.id.is_(None))
+            .order_by(Ticket.created_at, Ticket.id)
+            .limit(limit - count)
+        )
+        for ticket_id in rows:
+            count += int(enqueue_ticket(db, org, ticket_id))
+        if count >= limit:
+            break
     db.commit()
     return count
 
@@ -334,6 +342,7 @@ def process_outbox_embedding(db: Session, embedding_id: UUID, settings: Settings
     record.last_error = None
     db.commit()
 
+    set_tenant_context(db, org)
     source = source_text(db, org, ticket_id)
     if source is None or source[2] != digest:
         record = db.scalar(

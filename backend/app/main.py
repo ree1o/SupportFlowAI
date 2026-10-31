@@ -24,6 +24,7 @@ from app.incidents.api import router as incidents_router
 from app.integrations.api import inbound_router
 from app.integrations.api import router as integrations_router
 from app.logging import configure_logging
+from app.rate_limit import RateLimiter
 from app.semantic.api import router as semantic_router
 from app.sla.api import router as sla_router
 from app.tickets.api import router as tickets_router
@@ -38,11 +39,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.database = Database(settings)
+        app.state.rate_limiter = RateLimiter(
+            settings.redis_url,
+            settings.token_encryption_key.get_secret_value(),
+            disabled=settings.environment == "test",
+        )
         logger.info("application_started")
         try:
             yield
         finally:
             app.state.database.dispose()
+            app.state.rate_limiter.close()
             logger.info("application_stopped")
 
     app = FastAPI(
@@ -106,17 +113,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.exception_handler(AppError)
     async def application_error(request: Request, exc: AppError):
         response = error_response(request, exc.status, exc.code, exc.message, exc.details)
+        response.headers.update(exc.headers)
         if exc.status == 401 and exc.code == "unauthenticated":
             clear_cookies(response, settings)
         return response
 
     @app.exception_handler(SQLAlchemyError)
     async def database_error(request: Request, exc: SQLAlchemyError):
+        original = getattr(exc, "orig", None)
         logger.error(
             "database_request_failed",
             extra={
                 "request_id": request.state.request_id,
                 "error_type": type(exc).__name__,
+                "database_error_code": getattr(original, "sqlstate", None),
+                "database_constraint": getattr(original, "constraint_name", None),
             },
         )
         return error_response(request, 503, "database_unavailable", "Database is unavailable")

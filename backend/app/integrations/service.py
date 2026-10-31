@@ -27,6 +27,7 @@ from app.integrations.schemas import (
     SourceView,
     TicketCreatedEvent,
 )
+from app.tenancy import set_integration_source_context, set_tenant_context
 from app.tickets import service as ticket_service
 from app.tickets.models import Contact, Priority
 
@@ -216,9 +217,21 @@ def ingest(
 
     digest = hashlib.sha256(raw_body).hexdigest()
     with transaction(db, "Webhook event conflicts with an existing receipt"):
+        set_integration_source_context(db, source_id)
         source = db.scalar(
             select(IntegrationSource)
             .where(IntegrationSource.id == source_id)
+            .execution_options(populate_existing=True)
+        )
+        if source is None or not source.enabled or source.revoked_at is not None:
+            raise AppError(404, "not_found", "Integration source not found")
+        set_tenant_context(db, source.organization_id)
+        source = db.scalar(
+            select(IntegrationSource)
+            .where(
+                IntegrationSource.id == source_id,
+                IntegrationSource.organization_id == source.organization_id,
+            )
             .with_for_update(read=True)
             .execution_options(populate_existing=True)
         )

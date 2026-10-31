@@ -11,10 +11,12 @@ from app.config import Settings
 from app.customers.models import BackgroundJob, EmailDelivery, OutboxEvent
 from app.database import Database
 from app.identity import models as identity_models  # noqa: F401 -- load all FK targets in worker metadata
+from app.identity.models import Organization
 from app.identity.security import utcnow
 from app.incidents import models as incident_models  # noqa: F401 -- load M7 metadata in worker
 from app.semantic import models as semantic_models  # noqa: F401 -- load M8 metadata in worker
 from app.sla import models as sla_models  # noqa: F401 -- load M5 metadata in worker
+from app.tenancy import set_tenant_context
 from app.tickets import models as ticket_models  # noqa: F401 -- load all FK targets in worker metadata
 
 logger = logging.getLogger("supportflow.jobs")
@@ -48,6 +50,10 @@ celery_app.conf.update(
         "backfill-semantic-index": {
             "task": "supportflow.backfill_semantic_index",
             "schedule": 60.0,
+        },
+        "cleanup-transient-data": {
+            "task": "supportflow.cleanup_transient_data",
+            "schedule": 86400.0,
         },
     },
 )
@@ -91,6 +97,7 @@ def process_one(database: Database) -> bool:
         job_id = job.id
         event_id = event.id
         event_key = event.event_key
+        organization_id = event.organization_id
         payload = dict(event.payload)
 
     try:
@@ -101,6 +108,9 @@ def process_one(database: Database) -> bool:
             from app.semantic.service import process_outbox_embedding
 
             with database.session() as db:
+                if organization_id is None:
+                    raise ValueError("Tenant-scoped semantic event is missing its organization")
+                set_tenant_context(db, organization_id)
                 process_outbox_embedding(db, UUID(payload["embedding_id"]), Settings())
         else:
             with database.session() as db:
@@ -135,6 +145,9 @@ def process_one(database: Database) -> bool:
                 from app.semantic.service import fail_outbox_embedding
 
                 try:
+                    if organization_id is None:
+                        raise ValueError("Tenant-scoped semantic event is missing its organization")
+                    set_tenant_context(db, organization_id)
                     fail_outbox_embedding(
                         db,
                         UUID(payload["embedding_id"]),
@@ -207,8 +220,12 @@ def scan_sla_deadlines() -> int:
     database = Database(Settings())
     try:
         with database.session() as db:
-            count = scan_deadlines(db, batch_size=100)
-            db.commit()
+            organization_ids = list(db.scalars(select(Organization.id).order_by(Organization.id)))
+            count = 0
+            for organization_id in organization_ids:
+                set_tenant_context(db, organization_id)
+                count += scan_deadlines(db, batch_size=100)
+                db.commit()
             return count
     except Exception:
         database.dispose()
@@ -224,13 +241,14 @@ def scan_sla_deadlines() -> int:
     retry_jitter=True,
     max_retries=5,
 )
-def detect_incident_run(run_id: str) -> int:
+def detect_incident_run(organization_id: str, run_id: str) -> int:
     from app.incidents.service import process_detection_run
 
     database = Database(Settings())
     try:
         with database.session() as db:
-            return process_detection_run(db, UUID(run_id), Settings())
+            set_tenant_context(db, UUID(organization_id))
+            return process_detection_run(db, UUID(organization_id), UUID(run_id), Settings())
     finally:
         database.dispose()
 
@@ -248,10 +266,19 @@ def recover_incident_radar_runs() -> int:
     database = Database(Settings())
     try:
         with database.session() as db:
-            run_ids = load_pending_run_ids(db, limit=50)
-        for run_id in run_ids:
-            detect_incident_run.delay(str(run_id))
-        return len(run_ids)
+            organization_ids = list(db.scalars(select(Organization.id).order_by(Organization.id)))
+            queued: list[tuple[UUID, UUID]] = []
+            for organization_id in organization_ids:
+                set_tenant_context(db, organization_id)
+                queued.extend(
+                    (organization_id, run_id)
+                    for run_id in load_pending_run_ids(db, limit=max(0, 50 - len(queued)))
+                )
+                if len(queued) >= 50:
+                    break
+        for organization_id, run_id in queued:
+            detect_incident_run.delay(str(organization_id), str(run_id))
+        return len(queued)
     finally:
         database.dispose()
 
@@ -269,10 +296,10 @@ def schedule_incident_radar() -> int:
     database = Database(Settings())
     try:
         with database.session() as db:
-            run_ids = schedule_org_runs(db, Settings(), limit=25)
-        for run_id in run_ids:
-            detect_incident_run.delay(str(run_id))
-        return len(run_ids)
+            run_orgs = schedule_org_runs(db, Settings(), limit=25)
+        for organization_id, run_id in run_orgs:
+            detect_incident_run.delay(str(organization_id), str(run_id))
+        return len(run_orgs)
     finally:
         database.dispose()
 
@@ -291,5 +318,25 @@ def backfill_semantic_index() -> int:
     try:
         with database.session() as db:
             return schedule_missing(db, Settings(), limit=50)
+    finally:
+        database.dispose()
+
+
+@celery_app.task(
+    name="supportflow.cleanup_transient_data",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True,
+    max_retries=5,
+)
+def cleanup_transient_data() -> dict[str, int]:
+    from app.retention import cleanup_transient_data as cleanup
+
+    database = Database(Settings())
+    try:
+        with database.session() as db:
+            counts = cleanup(db, Settings())
+        logger.info("retention_cleanup_completed counts=%s", counts)
+        return counts
     finally:
         database.dispose()

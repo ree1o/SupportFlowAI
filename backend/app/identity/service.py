@@ -22,6 +22,7 @@ from app.identity.schemas import (
     Profile,
     Register,
 )
+from app.tenancy import set_tenant_context, set_user_context
 
 
 @dataclass
@@ -65,6 +66,7 @@ def authenticate(db: Session, raw: str) -> AuthContext:
     user = db.get(User, record.user_id)
     if user is None or not user.is_active:
         raise AppError(401, "unauthenticated", "Sign in to continue")
+    set_user_context(db, user.id)
     return AuthContext(user, record)
 
 
@@ -251,6 +253,7 @@ def organization_context(
     )
     if organization is None or membership is None:
         raise AppError(404, "not_found", "Organization not found")
+    set_tenant_context(db, organization_id)
     return organization, membership
 
 

@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     )
 
     database_url: SecretStr
+    migration_database_url: SecretStr | None = None
+    runtime_db_password: SecretStr | None = None
     environment: Literal["development", "test", "production"] = "development"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     database_pool_size: int = Field(default=5, ge=1, le=20)
@@ -46,6 +48,15 @@ class Settings(BaseSettings):
     semantic_index_batch_size: int = Field(default=50, ge=1, le=200)
     semantic_index_max_attempts: int = Field(default=5, ge=1, le=10)
     semantic_min_similarity: float = Field(default=0.35, gt=0, le=1)
+    retention_batch_size: int = Field(default=500, ge=1, le=5000)
+    session_retention_days: int = Field(default=30, ge=1, le=3650)
+    token_retention_days: int = Field(default=30, ge=1, le=3650)
+    invitation_retention_days: int = Field(default=90, ge=1, le=3650)
+    webhook_receipt_retention_days: int = Field(default=365, ge=1, le=3650)
+    notification_retention_days: int = Field(default=180, ge=1, le=3650)
+    completed_job_retention_days: int = Field(default=30, ge=1, le=3650)
+    radar_run_retention_days: int = Field(default=90, ge=1, le=3650)
+    stale_embedding_retention_days: int = Field(default=30, ge=1, le=3650)
     token_encryption_key: SecretStr = SecretStr("MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=")
 
     @model_validator(mode="after")

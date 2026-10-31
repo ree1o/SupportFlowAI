@@ -5,11 +5,19 @@ from fastapi.responses import JSONResponse
 
 
 class AppError(Exception):
-    def __init__(self, status: int, code: str, message: str, details: dict[str, Any] | None = None):
+    def __init__(
+        self,
+        status: int,
+        code: str,
+        message: str,
+        details: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ):
         self.status = status
         self.code = code
         self.message = message
         self.details = details
+        self.headers = headers or {}
 
 
 def error_response(
