@@ -48,6 +48,17 @@ class Settings(BaseSettings):
     semantic_index_batch_size: int = Field(default=50, ge=1, le=200)
     semantic_index_max_attempts: int = Field(default=5, ge=1, le=10)
     semantic_min_similarity: float = Field(default=0.35, gt=0, le=1)
+    # Generative AI is opt-in and always targets the local Ollama service.
+    ai_enabled: bool = False
+    ai_model: Literal["qwen3.5:4b-q4_K_M", "qwen3.5:2b-q4_K_M"] = "qwen3.5:4b-q4_K_M"
+    ai_ollama_url: str = "http://host.docker.internal:11434"
+    ai_timeout_seconds: int = Field(default=120, ge=5, le=300)
+    ai_status_timeout_seconds: float = Field(default=1.5, gt=0, le=5)
+    ai_context_tokens: int = Field(default=4096, ge=1024, le=8192)
+    ai_reply_max_tokens: int = Field(default=512, ge=64, le=1024)
+    ai_summary_max_tokens: int = Field(default=700, ge=64, le=1024)
+    ai_temperature: float = Field(default=0.15, ge=0, le=1)
+    ai_keep_alive: Literal["30s", "1m", "5m"] = "1m"
     retention_batch_size: int = Field(default=500, ge=1, le=5000)
     session_retention_days: int = Field(default=30, ge=1, le=3650)
     token_retention_days: int = Field(default=30, ge=1, le=3650)
@@ -114,4 +125,16 @@ class Settings(BaseSettings):
             valid = False
         if not valid:
             raise ValueError("Use a postgresql+psycopg URL with host, database, and username")
+        return value
+
+    @field_validator("ai_ollama_url")
+    @classmethod
+    def validate_ai_ollama_url(cls, value: str) -> str:
+        # Exact allowlist prevents arbitrary URL configuration from becoming an SSRF path.
+        if value not in {
+            "http://host.docker.internal:11434",
+            "http://127.0.0.1:11434",
+            "http://localhost:11434",
+        }:
+            raise ValueError("Ollama URL must use one of the approved local endpoints")
         return value

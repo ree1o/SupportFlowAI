@@ -11,6 +11,7 @@ from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException
 
+from app.ai.api import router as ai_router
 from app.config import Settings
 from app.customers.api import identity_router as customer_access_router
 from app.customers.api import router as customer_router
@@ -142,5 +143,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(integrations_router)
     app.include_router(incidents_router)
     app.include_router(semantic_router)
+    app.include_router(ai_router)
     app.include_router(inbound_router)
     return app
