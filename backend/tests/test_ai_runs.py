@@ -290,6 +290,101 @@ def test_run_database_policy_is_forced_and_tenant_scoped(ai_desk, runtime_databa
         assert delete_allowed is False
 
 
+def test_grounded_reply_finishes_under_runtime_role_with_forced_rls(
+    ai_desk, runtime_database, monkeypatch
+):
+    from sqlalchemy import text
+
+    from app.ai import service as ai_service
+
+    desk = ai_desk
+    run = start_reply(desk, "ai-runtime-role-key-01")
+    run_id = UUID(run.json()["id"])
+    monkeypatch.setattr(
+        ai_service, "get_knowledge_embedder", lambda _cache: FixedKnowledgeEmbedder()
+    )
+    _, runtime_db = runtime_database
+    provider = CapturingProvider()
+    with runtime_db.session() as db:
+        assert db.scalar(text("SELECT current_user")) == "supportflow_runtime"
+        assert (
+            db.scalar(
+                text(
+                    "SELECT relforcerowsecurity FROM pg_class WHERE relname = 'ai_runs' "
+                    "AND relnamespace = current_schema()::regnamespace"
+                )
+            )
+            is True
+        )
+        assert process_run(db, desk["org"], run_id, desk["settings"], provider) == "completed"
+
+    completed = desk["clients"]["owner"].get(f"/api{desk['root']}/ai/runs/{run_id}")
+    assert completed.status_code == 200, completed.text
+    assert completed.json()["status"] == "completed"
+    assert completed.json()["citations"][0]["article_id"] == desk["article"]["id"]
+
+
+def test_failed_completion_transaction_is_rolled_back_before_failure_state_write(
+    ai_desk, runtime_database, monkeypatch
+):
+    from sqlalchemy import text
+
+    from app.ai import service as ai_service
+
+    desk = ai_desk
+    run_id = UUID(start_reply(desk, "ai-runtime-failure-key-01").json()["id"])
+    monkeypatch.setattr(
+        ai_service, "get_knowledge_embedder", lambda _cache: FixedKnowledgeEmbedder()
+    )
+
+    def break_completion(db, *_args, **_kwargs):
+        db.execute(text("SELECT 1 / 0"))
+
+    monkeypatch.setattr(ai_service, "_finish_run", break_completion)
+    _, runtime_db = runtime_database
+    with runtime_db.session() as db:
+        assert db.scalar(text("SELECT current_user")) == "supportflow_runtime"
+        assert (
+            process_run(db, desk["org"], run_id, desk["settings"], CapturingProvider()) == "failed"
+        )
+
+    result = desk["clients"]["owner"].get(f"/api{desk['root']}/ai/runs/{run_id}")
+    assert result.status_code == 200, result.text
+    assert result.json()["status"] == "failed"
+    assert result.json()["error_code"] == "generation_failed"
+
+
+def test_recovery_marks_max_attempt_interrupted_run_terminal_under_forced_rls(
+    ai_desk, runtime_database
+):
+    from sqlalchemy import update
+
+    from app.ai.service import MAX_RUN_ATTEMPTS, recover_runs
+
+    desk = ai_desk
+    run_id = UUID(start_reply(desk, "ai-runtime-recovery-key-01").json()["id"])
+    old_time = utcnow() - timedelta(minutes=30)
+    with desk["db"].session() as db:
+        from app.tenancy import set_tenant_context
+
+        set_tenant_context(db, desk["org"])
+        db.execute(
+            update(AIRun)
+            .where(AIRun.organization_id == desk["org"], AIRun.id == run_id)
+            .values(status="running", attempts=MAX_RUN_ATTEMPTS, updated_at=old_time)
+        )
+        db.commit()
+
+    _, runtime_db = runtime_database
+    with runtime_db.session() as db:
+        assert recover_runs(db, desk["org"]) == []
+
+    result = desk["clients"]["owner"].get(f"/api{desk['root']}/ai/runs/{run_id}")
+    assert result.status_code == 200, result.text
+    assert result.json()["status"] == "failed"
+    assert result.json()["error_code"] == "worker_interrupted"
+
+
 def test_agentic_run_uses_only_bounded_read_only_tools_and_validated_sources(ai_desk, monkeypatch):
     from app.ai import tools as ai_tools
 

@@ -313,3 +313,63 @@ M10 release verification and publication are complete. The only known limits are
 synthetic answer-grounding/abstention targets documented above and that `gitleaks`,
 `trufflehog`, and GitHub CLI were unavailable locally; a high-confidence staged diff scan,
 CI, and all required local checks passed. Do not start M11 without explicit approval.
+
+## Runtime corrective maintenance — AI run transaction under forced RLS
+
+On 2026-11-25, a live grounded-reply run exposed a transaction-ordering defect in the
+restricted PostgreSQL runtime role. After a successful embedding and model response,
+`process_run` dirtied its identity-mapped `AIRun` by assigning the model digest after a
+commit. `_finish_run` then executed transaction-local tenant setup. SQLAlchemy autoflush
+ran the pending update before the RLS tenant setting had been established, so forced RLS
+matched zero rows and raised `StaleDataError`. The generic error handler attempted another
+query in the invalidated transaction and raised `PendingRollbackError`; consequently the
+run did not immediately reach a terminal state.
+
+The correction establishes tenant GUCs inside `Session.no_autoflush`, removes the
+unnecessary pre-completion ORM mutation, and makes each AI run transition helper begin
+from a rolled-back, clean transaction and reload the locked run with
+`populate_existing=True`. Completion, stale, provider-failure, and generic-failure paths
+now guard against overwriting a run that a concurrent recovery or cancellation has already
+transitioned. Generic failures roll back before recording `generation_failed`; this does
+not suppress the original error or bypass RLS.
+
+Regression coverage runs the grounded completion and a failed-completion recovery with
+the actual `supportflow_runtime` database role and forced `ai_runs` RLS in isolated
+PostgreSQL migration schemas. Another PostgreSQL test verifies an exhausted interrupted
+run becomes terminal as `worker_interrupted`. The frontend Playwright scenario advances
+the polling timer deterministically and verifies polling stops after the API reports a
+terminal failure.
+
+Verification on the local Windows/Docker Desktop setup:
+
+- Complete backend suite against the new dedicated disposable database
+  `supportflow_m10fix_20261125_test`: **204 passed, 1 intentional opt-in skip**. No
+  PostgreSQL integration tests were skipped. The skip is the separately enabled live-model
+  smoke test; all three live AI actions were instead exercised through the running Docker
+  API and AI worker using the already-installed local Ollama model.
+- Local Compose API, database, Redis, regular worker, AI worker, frontend, and Mailpit
+  rebuilt or remained healthy; API readiness was `ready`. AI was enabled and Ollama
+  reported the configured model available. No volume was removed.
+- A synthetic workspace, ticket, and published knowledge article were created through the
+  API. The article indexed successfully. Reply, summary, and agentic generation each
+  reached `completed`; observed latencies were 16,511 ms, 3,369 ms, and 11,259 ms. The
+  reply returned one verified citation; the bounded agent used only
+  `search_knowledge_base` and returned one citation. These are single-run functional
+  checks, not benchmark claims.
+- The existing database contained one old reply run which the recovery scheduler had
+  already terminalized as `failed / worker_interrupted` after its configured attempt
+  limit. There are no queued or running AI runs. The existing recovery task was invoked
+  under application configuration and found zero additional stale runs to redispatch.
+  No run, ticket, article, or other user data was deleted or manually rewritten.
+- Frontend production build passed. The full desktop/mobile Playwright suite passed
+  (**20/20**), including terminal-success and terminal-failure polling cessation. The first
+  full-suite attempt had 7 passes and 13 failures because earlier browser runs had consumed
+  the shared Redis DB 0 registration limits; each failed setup displayed the expected
+  “Too many requests” response. The suite passed on an isolated Redis logical DB 3 without
+  changing limiter settings or deleting keys. The standard Compose configuration was
+  restored to DB 0 afterward.
+
+The standard Compose configuration remains running with AI enabled for continued manual
+testing. The only remaining opt-in skip is intentional; it avoids requiring Ollama in
+standard backend CI. The real local-model paths were verified separately in the running
+Compose application.

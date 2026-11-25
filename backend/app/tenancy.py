@@ -11,10 +11,13 @@ from sqlalchemy.orm import Session
 
 
 def _set(db: Session, name: str, value: str) -> None:
-    db.execute(
-        text("SELECT set_config(:setting_name, :setting_value, true)"),
-        {"setting_name": name, "setting_value": value},
-    )
+    # Establish transaction-local RLS context before any pending ORM changes flush.
+    # Flushing first can run a tenant-owned UPDATE with an empty or previous tenant GUC.
+    with db.no_autoflush:
+        db.execute(
+            text("SELECT set_config(:setting_name, :setting_value, true)"),
+            {"setting_name": name, "setting_value": value},
+        )
 
 
 def set_tenant_context(db: Session, organization_id: UUID) -> None:

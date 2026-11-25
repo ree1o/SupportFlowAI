@@ -4,6 +4,10 @@ import { randomUUID } from "node:crypto";
 test("ticket Copilot shows grounded citations and inserts a human-reviewed draft", async ({ page }) => {
   const id = randomUUID().slice(0, 8);
   const articleId = randomUUID();
+  let queueNextRunForPolling: "failed" | "completed" | null = null;
+  let pollTerminalStatus: "failed" | "completed" = "failed";
+  let failedRunId = "";
+  let terminalPolls = 0;
   await page.route("**/api/organizations/*/ai/status", (route) =>
     route.fulfill({
       status: 200,
@@ -11,8 +15,51 @@ test("ticket Copilot shows grounded citations and inserts a human-reviewed draft
       body: JSON.stringify({ enabled: true, state: "available", model: "local-test-model", digest: "fixture" }),
     }),
   );
+  await page.route("**/api/organizations/*/ai/runs/*", async (route) => {
+    if (route.request().method() !== "GET" || !failedRunId) return route.continue();
+    terminalPolls += 1;
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: failedRunId,
+        action: "summary",
+        status: pollTerminalStatus,
+        ticket_version: 1,
+        result: pollTerminalStatus === "completed" ? "A concise synthetic summary." : null,
+        insufficient_evidence: false,
+        citations: [],
+        tools_used: [],
+        warnings: [],
+        error_code: pollTerminalStatus === "failed" ? "generation_failed" : null,
+        latency_ms: pollTerminalStatus === "completed" ? 1200 : null,
+      }),
+    });
+  });
   await page.route("**/api/organizations/*/ai/tickets/*/runs", async (route) => {
     const action = (route.request().postDataJSON() as { action: string }).action;
+    if (queueNextRunForPolling) {
+      pollTerminalStatus = queueNextRunForPolling;
+      queueNextRunForPolling = null;
+      failedRunId = randomUUID();
+      return route.fulfill({
+        status: 202,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: failedRunId,
+          action,
+          status: "queued",
+          ticket_version: 1,
+          result: null,
+          insufficient_evidence: false,
+          citations: [],
+          tools_used: [],
+          warnings: [],
+          error_code: null,
+          latency_ms: null,
+        }),
+      });
+    }
     return route.fulfill({
       status: 202,
       contentType: "application/json",
@@ -72,5 +119,18 @@ test("ticket Copilot shows grounded citations and inserts a human-reviewed draft
   );
   await page.getByRole("button", { name: "Analyze with read-only tools" }).click();
   await expect(page.getByText("Read-only tools used: get_sla_status")).toBeVisible();
+  await page.clock.install();
+  queueNextRunForPolling = "failed";
+  await page.getByRole("button", { name: "Summarize conversation" }).click();
+  await page.clock.fastForward(2000);
+  await expect(page.getByRole("alert")).toContainText("Generation failed (generation_failed)");
+  await page.clock.fastForward(20000);
+  expect(terminalPolls).toBe(1);
+  queueNextRunForPolling = "completed";
+  await page.getByRole("button", { name: "Summarize conversation" }).click();
+  await page.clock.fastForward(2000);
+  await expect(page.getByText("A concise synthetic summary.")).toBeVisible();
+  await page.clock.fastForward(20000);
+  expect(terminalPolls).toBe(2);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

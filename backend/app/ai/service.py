@@ -625,7 +625,6 @@ def process_run(
                 "tools_used": tool_names,
                 "warnings": [],
             }
-        run.model_digest = model_status.digest
         _finish_run(
             db,
             org,
@@ -667,9 +666,16 @@ def _finish_run(
     settings: Settings,
 ) -> None:
     del settings
+    # Inference runs outside a transaction. Start completion from a clean session so
+    # failed reads/flushes cannot poison the failure handler and stale ORM state cannot
+    # overwrite a concurrent recovery or cancellation transition.
+    db.rollback()
     set_tenant_context(db, org)
     run = db.scalar(
-        select(AIRun).where(AIRun.organization_id == org, AIRun.id == run_id).with_for_update()
+        select(AIRun)
+        .where(AIRun.organization_id == org, AIRun.id == run_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
     if run is None or run.status != "running":
         db.rollback()
@@ -746,11 +752,16 @@ def _finish_run(
 
 
 def _record_provider_failure(db: Session, org: UUID, run_id: UUID, settings: Settings) -> None:
+    del settings
+    db.rollback()
     set_tenant_context(db, org)
     run = db.scalar(
-        select(AIRun).where(AIRun.organization_id == org, AIRun.id == run_id).with_for_update()
+        select(AIRun)
+        .where(AIRun.organization_id == org, AIRun.id == run_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
-    if run is None:
+    if run is None or run.status != "running":
         db.rollback()
         return
     now = utcnow()
@@ -763,11 +774,15 @@ def _record_provider_failure(db: Session, org: UUID, run_id: UUID, settings: Set
 
 
 def _mark_run_stale(db: Session, org: UUID, run_id: UUID) -> None:
+    db.rollback()
     set_tenant_context(db, org)
     run = db.scalar(
-        select(AIRun).where(AIRun.organization_id == org, AIRun.id == run_id).with_for_update()
+        select(AIRun)
+        .where(AIRun.organization_id == org, AIRun.id == run_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
-    if run is None:
+    if run is None or run.status != "running":
         db.rollback()
         return
     run.status = "stale"
@@ -779,11 +794,17 @@ def _mark_run_stale(db: Session, org: UUID, run_id: UUID) -> None:
 
 
 def _fail_run(db: Session, org: UUID, run_id: UUID, code: str) -> None:
+    # The operation that raised may have invalidated the current SQLAlchemy
+    # transaction. Roll it back before tenant context or ORM recovery work.
+    db.rollback()
     set_tenant_context(db, org)
     run = db.scalar(
-        select(AIRun).where(AIRun.organization_id == org, AIRun.id == run_id).with_for_update()
+        select(AIRun)
+        .where(AIRun.organization_id == org, AIRun.id == run_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
-    if run is None:
+    if run is None or run.status not in {"queued", "running"}:
         db.rollback()
         return
     run.status = "failed"
