@@ -4,18 +4,16 @@ Updated: 2026-11-25 (Asia/Qyzylorda)
 
 ## Current status
 
-M10.1 was previously committed and pushed. M10.2–M10.6 implementation and release
-verification changes are present in the working tree and remain uncommitted. No M11 work has
-started. The current branch is `main`; the latest commit is
-`181a6b9f53720ec406e3ae3077935a51558777e4` (`feat(backend): add optional local generation provider`).
-At the last inspection, `origin` was `https://github.com/ree1o/SupportFlowAI.git`, and local
-HEAD matched `origin/main`. Recheck the live Git state and remote before publication.
+M10.1 was first committed in `181a6b9f53720ec406e3ae3077935a51558777e4`. M10.2–M10.6
+were completed and released in `5fae663f1dc18f82c7b27b0c1d5beeee6e1adb4a` on `main`.
+The normal push to `origin` succeeded, and the remote `main` tip was verified to match.
+GitHub Actions run [45646613287](https://github.com/ree1o/SupportFlowAI/actions/runs/45646613287)
+passed backend, frontend, and compose-smoke. No M11 work has started.
 
 The full M10 code is implemented and local verification passed, with the important
 qualification that the synthetic generation quality targets below were not met. Do not
 present the Copilot as production-ready or its answers as reliably grounded. It is opt-in,
-experimental, and human-review-only. No commit/push for M10.2–M10.6 has been made. GitHub
-Actions for those changes have therefore not run.
+experimental, and human-review-only. It remains opt-in and human-reviewed.
 
 ## Implemented phases
 
@@ -124,7 +122,8 @@ set. Security/tenant tests and citation-ID validity are separate from semantic g
   chunks reached `ready` from the browser-created synthetic articles.
 - The local AI evaluation itself ran with the existing model caches and native Ollama; no
   customer data was used. `docker compose config --quiet` passed.
-- GitHub Actions for the uncommitted M10 changes are pending; no commit or push has occurred.
+- At that verification checkpoint, M10 had not yet been published. Final commit, push, and
+  GitHub Actions results are recorded below.
 
 ## Modified/untracked M10 scope
 
@@ -136,7 +135,7 @@ README, architecture/data-model/roadmap/local-AI/semantic docs, and this progres
 Frontend Playwright artifacts and model caches are ignored generated/local files, not part
 of the intended commit. No unrelated changes are known.
 
-## Exact remaining steps
+## Original publication checklist (superseded by the continuation below)
 
 1. Inspect the actual full diff, including all untracked source, and validate docs links /
    formatting. Lock regeneration needs a network-enabled environment; `pip check` passed.
@@ -304,13 +303,13 @@ After the checkpoint snapshot above, verification was rerun:
   staged and unstaged added lines found no private-key headers or common provider tokens.
   `gitleaks`, `trufflehog`, and GitHub CLI are not installed. `.env`, virtualenv,
   `node_modules`, `frontend/dist`, and Playwright result artifacts are ignored.
-- At this point no M10 commit or push has been made. The last confirmed `origin/main` tip
-  was `181a6b9f53720ec406e3ae3077935a51558777e4`; recheck before publishing. GitHub Actions
-  for M10 have not yet run.
+- M10 commit `5fae663f1dc18f82c7b27b0c1d5beeee6e1adb4a` was pushed to `origin/main`; the
+  public ref was verified equal to local HEAD. GitHub Actions run [45646613287](https://github.com/ree1o/SupportFlowAI/actions/runs/45646613287)
+  completed successfully: [backend](https://github.com/ree1o/SupportFlowAI/actions/runs/45646613287/job/139319206196),
+  [frontend](https://github.com/ree1o/SupportFlowAI/actions/runs/45646613287/job/139319205689),
+  and [compose-smoke](https://github.com/ree1o/SupportFlowAI/actions/runs/45646613287/job/139319205952).
 
-Remaining steps: finish the staged-diff/code and documentation review; stage only the
-post-staging M10 edits; verify the staged diff and secrets scan; commit using the repository's
-Conventional Commit rules; push normally to `origin/main`; verify remote/local HEAD equality;
-and monitor backend, frontend, and compose-smoke Actions. If documentation is updated after
-the first push with CI results, commit and push that documentation change normally and
-verify its resulting Actions run too. Do not start M11.
+M10 release verification and publication are complete. The only known limits are the missed
+synthetic answer-grounding/abstention targets documented above and that `gitleaks`,
+`trufflehog`, and GitHub CLI were unavailable locally; a high-confidence staged diff scan,
+CI, and all required local checks passed. Do not start M11 without explicit approval.
