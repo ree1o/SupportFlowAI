@@ -59,6 +59,8 @@ class Settings(BaseSettings):
     ai_summary_max_tokens: int = Field(default=700, ge=64, le=1024)
     ai_temperature: float = Field(default=0.15, ge=0, le=1)
     ai_keep_alive: Literal["30s", "1m", "5m"] = "1m"
+    ai_result_retention_days: int = Field(default=30, ge=1, le=3650)
+    knowledge_index_max_attempts: int = Field(default=5, ge=1, le=10)
     retention_batch_size: int = Field(default=500, ge=1, le=5000)
     session_retention_days: int = Field(default=30, ge=1, le=3650)
     token_retention_days: int = Field(default=30, ge=1, le=3650)

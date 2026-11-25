@@ -27,6 +27,18 @@ class ModelStatus:
     digest: str | None = None
 
 
+@dataclass(frozen=True)
+class ToolCall:
+    name: str
+    arguments: dict[str, object]
+
+
+@dataclass(frozen=True)
+class ToolTurn:
+    content: str
+    calls: tuple[ToolCall, ...]
+
+
 class GenerationProvider:
     """Typed generation contract. Fake providers can implement this in tests."""
 
@@ -35,6 +47,11 @@ class GenerationProvider:
 
     def generate_structured(self, prompt: str, response_model: type[T], max_tokens: int) -> T:
         raise NotImplementedError
+
+    def generate_with_tools(
+        self, messages: list[dict[str, object]], tools: list[dict], max_tokens: int
+    ) -> ToolTurn:
+        raise ProviderUnavailable("Provider does not support read-only tool calling")
 
 
 class OllamaProvider(GenerationProvider):
@@ -104,6 +121,52 @@ class OllamaProvider(GenerationProvider):
             raise ProviderUnavailable(
                 "Local model returned an invalid structured response"
             ) from exc
+
+    def generate_with_tools(
+        self, messages: list[dict[str, object]], tools: list[dict], max_tokens: int
+    ) -> ToolTurn:
+        if not self._settings.ai_enabled:
+            raise ProviderUnavailable("Local AI is disabled")
+        if (
+            not messages
+            or sum(len(str(item.get("content", ""))) for item in messages) > MAX_PROMPT_CHARS
+        ):
+            raise ValueError("Prompt is empty or exceeds the configured input bound")
+        if max_tokens < 1 or max_tokens > 1024 or len(tools) > 4:
+            raise ValueError("Tool request is outside the configured bounds")
+        payload = {
+            "model": self._settings.ai_model,
+            "messages": messages,
+            "tools": tools,
+            "stream": False,
+            "think": False,
+            "keep_alive": self._settings.ai_keep_alive,
+            "options": {
+                "temperature": self._settings.ai_temperature,
+                "num_ctx": self._settings.ai_context_tokens,
+                "num_predict": max_tokens,
+            },
+        }
+        response = self._request(
+            "POST", "/api/chat", payload, timeout=self._settings.ai_timeout_seconds
+        )
+        message = response.get("message")
+        if not isinstance(message, dict):
+            raise ProviderUnavailable("Local model returned an invalid tool response")
+        content = message.get("content", "")
+        raw_calls = message.get("tool_calls", [])
+        if not isinstance(content, str) or not isinstance(raw_calls, list) or len(raw_calls) > 1:
+            raise ProviderUnavailable("Local model returned an invalid tool response")
+        calls: list[ToolCall] = []
+        for raw in raw_calls:
+            function = raw.get("function") if isinstance(raw, dict) else None
+            if not isinstance(function, dict):
+                raise ProviderUnavailable("Local model returned an invalid tool call")
+            name, arguments = function.get("name"), function.get("arguments")
+            if not isinstance(name, str) or not isinstance(arguments, dict):
+                raise ProviderUnavailable("Local model returned an invalid tool call")
+            calls.append(ToolCall(name, arguments))
+        return ToolTurn(content=content[:6000], calls=tuple(calls))
 
     def _request(
         self,

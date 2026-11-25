@@ -66,8 +66,11 @@ SUPPORTFLOW_AI_KEEP_ALIVE=1m
 
 Restart API/worker containers after changing settings. The model remains in Ollama's
 user-managed persistent cache, outside Git and outside the PostgreSQL volume. `keep_alive`
-is one minute by default so the GPU can be reclaimed when the model is idle. Initial
-generation concurrency is one; later background execution must enforce this limit.
+is one minute by default so the GPU can be reclaimed when the model is idle. Generation
+runs asynchronously on the isolated Celery `ai` queue at concurrency one. The API commits
+run state and outbox work together, returns `202`, and the staff UI polls the run. Reply
+generation and summaries cannot delay ordinary ticket requests. Model calls have a bounded
+120-second timeout and worker recovery/retry policies.
 
 ## M10.1 host observation (2026-11-24)
 
@@ -109,5 +112,22 @@ characters. Invalid JSON, schema mismatch, timeout, or unavailable Ollama become
 `ProviderUnavailable` error; sensitive prompts and provider response bodies are not
 logged. The adapter does not call Ollama when disabled.
 
-No generation route, background inference queue, Knowledge Base, prompt, or customer
-context is introduced in M10.1. Those controls are designed for later M10 phases.
+## M10.3-M10.5 local inference verification
+
+On 2026-11-25, the local model was restarted after the host shutdown and its existing
+cached artifact was reused. The API container verified model availability and matched
+the expected artifact digest. The model returned one valid `get_sla_status` tool call
+through the implemented `/api/chat` adapter. A separate opt-in PostgreSQL integration
+smoke exercised the staff run workflow, published source retrieval, real local model,
+tool loop, structured response validation, and tenant-scoped result readback; it passed
+in 20.42 seconds. This is one synthetic smoke case, not a generation-quality or latency
+benchmark. No customer data was used.
+
+The Copilot UI displays local availability and inserts only a draft into the existing
+public reply editor after a human action. It never sends generated content. When Ollama
+is disabled or unavailable, status is shown and ordinary ticket operations remain
+available. The standard test suite does not download or require a generative model; set
+`RUN_LOCAL_AI_SMOKE=1` to enable the optional real-model integration test.
+
+There is no cloud fallback. The provider URL is restricted to explicit local endpoints.
+The Compose default remains disabled; local opt-in instructions are above.

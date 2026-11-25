@@ -23,7 +23,8 @@ VECTOR_DIMENSIONS = 384
 MODEL_ID = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 MODEL_REPOSITORY = "qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q"
 MODEL_REPOSITORY_REVISION = "faf4aa4225822f3bc6376869cb1164e8e3feedd0"
-MODEL_VERSION = f"{MODEL_ID}@fastembed-0.7.3:{MODEL_REPOSITORY_REVISION}"
+LEGACY_MODEL_VERSION = f"{MODEL_ID}@fastembed-0.7.3:{MODEL_REPOSITORY_REVISION}"
+MODEL_VERSION = f"{MODEL_ID}@fastembed-0.8.1:{MODEL_REPOSITORY_REVISION}"
 
 
 class TicketEmbedding(Base):

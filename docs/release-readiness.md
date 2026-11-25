@@ -2,9 +2,9 @@
 
 ## Reproducible local demonstration
 
-Use only local synthetic data and the Compose defaults. The example passwords in the
-README are disposable demo values. The demonstration does not require paid APIs or a
-public endpoint.
+Use local synthetic data, generated passwords, and Compose defaults. There are no
+preseeded demo credentials. The demonstration does not require paid APIs or a public
+endpoint.
 
 1. Start Docker Compose and open the frontend. Register an organization owner, then
    create an administrator and agent through the existing membership flow.
@@ -20,12 +20,19 @@ public endpoint.
 6. Create multiple tickets with a shared specific symptom and one unrelated ticket.
    In Incident Radar, inspect the deterministic evidence, reject one proposal, and
    confirm another after reviewing the group.
-7. Create differently worded but semantically related tickets. Prepare the local model
-   cache as described in `docs/semantic-retrieval.md`; show the staff Related Tickets
-   panel returns same-organization candidates.
-8. Sign in as a second organization and show that ticket, incident, and retrieval
-   results stay tenant-scoped. Use `/api/health/live` and `/api/health/ready` to explain
-   process and database readiness separately.
+7. Create and publish a synthetic Knowledge Base procedure. Prepare the local embedding
+   cache and optional Ollama model using `docs/local-ai.md`; wait for indexing to show
+   `indexed`, then generate a reply, inspect its versioned citation, insert it into the
+   public reply editor, edit it, and submit through the ordinary staff workflow. Use the
+   read-only tool action to inspect the current ticket's SLA and published guidance.
+8. Create differently worded but semantically related tickets. Show the staff Related
+   Tickets panel returns same-organization candidates. Explain that retrieval and AI
+   output are advisory; the [M10 evaluation](ai-evaluation.md) missed its proposed
+   citation and abstention targets, so verify every source and draft manually.
+9. Sign in as a second organization and show that ticket, incident, Knowledge Base,
+   semantic retrieval, and Copilot run results stay tenant-scoped. Use
+   `/api/health/live` and `/api/health/ready` to explain process and database readiness
+   separately.
 
 Do not describe an SLA notification or model result as guaranteed until the worker has
 actually processed it. Do not use screenshots unless captured from the running app.
@@ -69,6 +76,8 @@ or a production-readiness claim. No external server has been provisioned.
 - M7 detector methodology and synthetic fixture results: [Incident Radar](incident-radar.md).
 - M8 retrieval dataset, model, lexical comparisons and measured evaluation: [Semantic
   retrieval](semantic-retrieval.md).
+- M10 local model setup, Knowledge Base and Copilot behavior: [local AI](local-ai.md),
+  [Copilot](ai-copilot.md), and [synthetic evaluation](ai-evaluation.md).
 - M9 runtime privilege matrix, RLS coverage, limits and retention: [Security hardening](security-hardening.md).
 - Backup/recovery instructions: [Backup runbook](backup-recovery.md).
 - Reproducible local request and detector measurements: [Performance report](performance-report.md).

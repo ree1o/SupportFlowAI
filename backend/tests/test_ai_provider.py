@@ -4,7 +4,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pydantic import BaseModel, ConfigDict
 
-from app.ai.provider import MAX_PROMPT_CHARS, MockProvider, OllamaProvider, ProviderUnavailable
+from app.ai.provider import (
+    MAX_PROMPT_CHARS,
+    MockProvider,
+    OllamaProvider,
+    ProviderUnavailable,
+)
 from app.config import Settings
 
 
@@ -106,3 +111,59 @@ def test_mock_provider_validates_output_without_network_access():
     )
     with pytest.raises(ProviderUnavailable):
         MockProvider({"text": 4}).generate_structured("prompt", Result, 20)
+
+
+def test_tool_provider_uses_local_chat_and_parses_one_typed_call():
+    provider = OllamaProvider(settings(ai_enabled=True))
+    payload = {
+        "message": {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "function": {
+                        "name": "get_sla_status",
+                        "arguments": {},
+                    }
+                }
+            ],
+        }
+    }
+    tool_schema = [{"type": "function", "function": {"name": "get_sla_status", "parameters": {}}}]
+    with patch("app.ai.provider.urlopen", return_value=response(payload)) as call:
+        result = provider.generate_with_tools(
+            [{"role": "user", "content": "Check SLA status"}], tool_schema, 128
+        )
+    request = call.call_args.args[0]
+    sent = json.loads(request.data)
+    assert request.full_url == "http://host.docker.internal:11434/api/chat"
+    assert sent["think"] is False
+    assert sent["tools"] == tool_schema
+    assert result.calls[0].name == "get_sla_status"
+    assert result.calls[0].arguments == {}
+
+
+def test_tool_provider_rejects_multiple_or_malformed_calls():
+    provider = OllamaProvider(settings(ai_enabled=True))
+    messages = [{"role": "user", "content": "check"}]
+    with (
+        patch(
+            "app.ai.provider.urlopen",
+            return_value=response(
+                {"message": {"content": "", "tool_calls": [{"function": {}}, {"function": {}}]}}
+            ),
+        ),
+        pytest.raises(ProviderUnavailable, match="invalid tool response"),
+    ):
+        provider.generate_with_tools(messages, [], 128)
+
+    with (
+        patch(
+            "app.ai.provider.urlopen",
+            return_value=response(
+                {"message": {"content": "", "tool_calls": [{"function": {"name": "x"}}]}}
+            ),
+        ),
+        pytest.raises(ProviderUnavailable, match="invalid tool call"),
+    ):
+        provider.generate_with_tools(messages, [], 128)

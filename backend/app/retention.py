@@ -4,9 +4,10 @@ from datetime import timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import delete, exists, or_, select
+from sqlalchemy import delete, exists, or_, select, update
 from sqlalchemy.orm import Session
 
+from app.ai.models import AIRun
 from app.config import Settings
 from app.customers.models import (
     AccountToken,
@@ -85,6 +86,7 @@ def cleanup_transient_data(
             "read_notifications": 0,
             "radar_runs": 0,
             "stale_embeddings": 0,
+            "ai_results_redacted": 0,
         }
     )
     for org_id in org_ids:
@@ -194,6 +196,44 @@ def cleanup_transient_data(
             else []
         )
         counts["stale_embeddings"] += _purge(db, TicketEmbedding, embedding_ids, dry_run)
+
+        ai_cutoff = now - timedelta(days=settings.ai_result_retention_days)
+        remaining = batch - counts["ai_results_redacted"]
+        ai_ids = (
+            list(
+                db.scalars(
+                    select(AIRun.id)
+                    .where(
+                        AIRun.organization_id == org_id,
+                        AIRun.status.in_(["completed", "failed", "stale", "cancelled"]),
+                        AIRun.finished_at < ai_cutoff,
+                        AIRun.result.is_not(None),
+                    )
+                    .order_by(AIRun.finished_at, AIRun.id)
+                    .limit(remaining)
+                )
+            )
+            if remaining
+            else []
+        )
+        if ai_ids and not dry_run:
+            db.execute(
+                update(AIRun)
+                .where(AIRun.organization_id == org_id, AIRun.id.in_(ai_ids))
+                .values(
+                    result={
+                        "answer": "",
+                        "insufficient_evidence": True,
+                        "citations": [],
+                        "tools_used": [],
+                        "warnings": [
+                            "Generated content expired under the configured retention policy."
+                        ],
+                        "purged": True,
+                    }
+                )
+            )
+        counts["ai_results_redacted"] += len(ai_ids)
 
     job_cutoff = now - timedelta(days=settings.completed_job_retention_days)
     job_ids = list(

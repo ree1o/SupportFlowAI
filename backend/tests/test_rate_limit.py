@@ -87,3 +87,42 @@ def test_limited_request_carries_retry_after_header():
     response = TestClient(app).get("/limited")
     assert response.status_code == 429
     assert response.headers["Retry-After"] == "17"
+
+
+def test_limited_supports_organization_and_global_identity_scopes():
+    from fastapi import Depends, FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.rate_limit import limited
+
+    class FakeLimiter:
+        def __init__(self):
+            self.calls = []
+
+        def check(self, **kwargs):
+            self.calls.append(kwargs)
+            return None
+
+    app = FastAPI()
+    fake_limiter = FakeLimiter()
+    app.state.rate_limiter = fake_limiter
+
+    @app.get(
+        "/organizations/{organization_id}/limited",
+        dependencies=[Depends(limited("org", 30, 3600, identity_scope="organization"))],
+    )
+    def organization_limited():
+        return {"ok": True}
+
+    @app.get(
+        "/global-limited",
+        dependencies=[Depends(limited("global", 120, 3600, identity_scope="global"))],
+    )
+    def global_limited():
+        return {"ok": True}
+
+    client = TestClient(app)
+    assert client.get("/organizations/org-a/limited").status_code == 200
+    assert client.get("/organizations/org-b/limited").status_code == 200
+    assert client.get("/global-limited").status_code == 200
+    assert [call["identity"] for call in fake_limiter.calls] == ["org-a", "org-b", "global"]

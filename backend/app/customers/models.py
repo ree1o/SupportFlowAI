@@ -140,6 +140,7 @@ class BackgroundJob(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lease_token: Mapped[str | None] = mapped_column(String(64))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[str | None] = mapped_column(String(120))
 

@@ -7,7 +7,7 @@ ticket records for human inspection. A similarity score is a retrieval signal, n
 of a common cause. M7's deterministic Incident Radar code and thresholds remain separate
 and unchanged.
 
-The pinned local adapter uses FastEmbed 0.7.3 with
+The original M8 deployment used FastEmbed 0.7.3 with
 `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`, a multilingual English /
 Russian-capable MiniLM sentence model. It emits 384-dimensional vectors and is Apache-2.0
 licensed. FastEmbed runs the quantized ONNX model with ONNX Runtime on CPU; there is no
@@ -19,11 +19,18 @@ call to one document and two ONNX threads. Sources: [model card](https://hugging
 [FastEmbed](https://github.com/qdrant/fastembed), and
 [FastEmbed 0.7.3 model registry](https://github.com/qdrant/fastembed/blob/v0.7.3/fastembed/text/onnx_text_model.py).
 
+M10.2 upgraded the pinned runtime to FastEmbed 0.8.1 and ONNX Runtime 1.32.0 so the
+separate Knowledge Base could use Qwen3 Embedding Q. Ticket index identity now includes
+the adapter/runtime version. Existing 0.7.3 ticket vectors are retained as a compatible
+legacy model version while 0.8.1 rows are indexed; query and candidate vectors are always
+selected from the same version. A bounded backfill can reindex rows, and the old version
+remains available for rollback. Never compare or mix vectors between versions.
+
 The model ID and version are stored on each embedding. The ONNX artifact repository is
 `qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q` at immutable revision
 [`faf4aa4225822f3bc6376869cb1164e8e3feedd0`](https://huggingface.co/qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q/tree/faf4aa4225822f3bc6376869cb1164e8e3feedd0);
 setup downloads only the five model/tokenizer files FastEmbed needs at that revision.
-FastEmbed 0.7.3 is also pinned. Model setup is explicit; application startup, migrations,
+FastEmbed 0.8.1 is pinned for the current build. Model setup is explicit; application startup, migrations,
 and tests do not download it. The worker's cache is a named Compose volume and weights
 are never committed.
 
@@ -111,17 +118,16 @@ configuration default, not a quality claim.
 
 ## Evaluation
 
-`backend/tests/fixtures/semantic_retrieval_heldout.json` is a separate synthetic held-out
-set: 16 queries, 32 candidate tickets, one labeled relevant candidate per query. It
-contains English and Russian paraphrases, cross-language wording, generic-word negatives,
-same-category and close-time distractors. Labels are used only by the evaluation harness,
-not embedding inputs. Every method sees the same candidate set. The three rankers are
-simple token Jaccard, a documented lexical-v1 adaptation using M7 significant terms,
-category and time, and exact pgvector cosine retrieval. The harness reports P@5, Recall@5,
-MRR@5, ranking/embedding/SQL query latency, vectors/second and PostgreSQL table size.
-It inserts a foreign-tenant nearest vector and asserts the organization-filtered query
-never returns it. Temporary vectors use a random schema in a database whose name ends in
-`_test`, and the schema is removed in `finally`.
+The M8 baseline fixture `backend/tests/fixtures/semantic_retrieval_heldout.json` contains
+16 English/Russian queries and 32 candidates. M10.2 added an independent multilingual
+retrieval evaluation with 36 candidate documents, 12 topics, three languages, and 48
+held-out queries (plus a separate development set). Labels are read only by the harness,
+not passed into the embedder. Every method ranks the same corpus. Methods are token
+Jaccard, an M7 lexical-v1 adaptation, M8 MiniLM vectors under FastEmbed 0.8.1, and Qwen3
+Embedding Q vectors for the Knowledge Base. Exact pgvector queries filter by organization
+and current published revision. The harness reports P@5, Recall@5, MRR@5, indexing and
+query latency, and storage. These are separate measurements for two different model
+spaces; ticket and Knowledge Base vectors are never combined.
 
 Run it from `backend` after creating the dedicated disposable test database and preparing
 the local model cache:
@@ -139,28 +145,25 @@ model query encoding and SQL timings below exclude one-time model startup/downlo
 specification was not captured, so these are reproducibility evidence for this run, not
 capacity claims. Timing is environment-sensitive and is not a performance guarantee.
 
-| Retrieval method | Relevant in top 5 / 16 | P@5 | Recall@5 | MRR@5 | Mean ranking / query time |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Simple token Jaccard | 14 | 0.1750 | 0.8750 | 0.5146 | 0.235 ms ranking |
-| M7 lexical-v1 adaptation | 7 | 0.0875 | 0.4375 | 0.2469 | 0.273 ms ranking |
-| Semantic exact pgvector | 15 | 0.1875 | 0.9375 | 0.7344 | 6.84 ms query embedding + 1.844 ms SQL |
+| Retrieval method | Relevant docs in top 5 / 240 | Queries with any hit / 48 | P@5 | Recall@5 | MRR@5 | Timing |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Unicode lexical Jaccard | 42 | 36 | 0.1750 | 0.2917 | 0.5938 | 2.31 ms total ranking |
+| M7 lexical-v1 adaptation | 42 | 34 | 0.1750 | 0.2917 | 0.5729 | token scoring |
+| M8 MiniLM, FastEmbed 0.8.1 | 63 | 36 | 0.2625 | 0.4375 | 0.5622 | index 36: 0.556 s; mean 8.51 ms; p95 10.99 ms |
+| Qwen3 Embedding Q, KB | 86 | 42 | 0.3583 | 0.5972 | 0.8115 | index 36: 51.911 s; mean 2,243.71 ms; p95 2,965.85 ms |
 
-Semantic retrieval ranked 15 of the 16 relevant items into the same top-five candidate
-window, compared with 14 for simple lexical and 7 for the M7-style lexical adaptation.
-The indexing run embedded 32 documents in 0.262 seconds (121.97 documents/second), stored
-49,152 raw vector bytes, and measured 106,496 bytes for the temporary PostgreSQL table
-(heap and primary key, including the additional foreign-tenant isolation-check row).
-The tenant filter check passed. The dataset has one relevant label per query, so Precision@5
-is relevant hits divided by 80 result slots; Recall@5 is hits divided by 16 relevant
-labels; MRR@5 is mean reciprocal rank, with zero for a miss.
+For the 48 held-out queries, the Qwen Knowledge Base vector ranker placed 86 relevant
+documents in the top-five result slots and had at least one relevant result for 42 queries,
+compared with 63 documents/36 queries for M8 MiniLM, 42/36 for Jaccard, and 42/34 for M7
+lexical-v1. The corpus has 144 labeled relevant query-document pairs. P@5 divides relevant
+documents returned by 240 result slots; Recall@5 divides them by 144 relevant pairs; MRR@5
+is mean reciprocal rank of the first relevant item (zero for a miss). Qwen had the strongest
+ranking metrics in this fixture but was materially slower to index and query on CPU. These
+one-run synthetic results are not a production-accuracy claim.
 
-Representative per-query results show the trade-off. On q06, the Russian query for an
-empty exported CSV report ranked its English paraphrase at rank 1 semantically versus rank
-8 with token overlap. On q16, the Russian old-delivery-address complaint ranked at 1
-semantically and 4 lexically. Lexical search ranked q10 (subscription auto-renewal did not
-stop before the next charge) at rank 2 while semantic retrieval missed its relevant result
-in the top five; q01 ranked 3 lexically versus 4 semantically. The harness prints every
-query's relevant rank per method for reproducibility.
+Semantic ranking helped on cross-language wording and synonym-heavy topics. Lexical
+ranking remained competitive on literal overlap and some domain-specific terms. The exact
+per-query ranks and benchmark code are stored in the fixture and harness for reproduction.
 
 This compact synthetic set demonstrates implementation behavior only; it does not
 establish production retrieval quality or generalization. Lexical search can win when exact
@@ -173,7 +176,7 @@ artifact quantization can still rank poorly; staff judgment remains required.
 
 - One multilingual general-purpose model, one model version and one fixed-dimensional
   index; no per-tenant fine-tuning or model migration UI.
-- FastEmbed 0.7.3 reports that this model mapping uses mean pooling in place of its earlier
+- FastEmbed 0.8.1 reports that this model mapping uses mean pooling in place of its earlier
   CLS behavior. The model package, artifact revision, evaluation and stored model version
   are pinned together; changing pooling behavior requires a new model version and reindex.
 - Best-effort pattern masking is not PII detection or a secrets scanner.

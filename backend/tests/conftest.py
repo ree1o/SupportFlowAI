@@ -87,6 +87,20 @@ def postgres(monkeypatch):
             )
             connection.execute(
                 text(
+                    f'GRANT SELECT, INSERT, UPDATE ON TABLE "{schema}".knowledge_articles, '
+                    f'"{schema}".knowledge_article_versions, "{schema}".knowledge_chunks '
+                    "TO supportflow_runtime"
+                )
+            )
+            connection.execute(
+                text(
+                    f'REVOKE DELETE ON TABLE "{schema}".knowledge_articles, '
+                    f'"{schema}".knowledge_article_versions, "{schema}".knowledge_chunks '
+                    "FROM supportflow_runtime"
+                )
+            )
+            connection.execute(
+                text(
                     f'REVOKE UPDATE ON TABLE "{schema}".messages, '
                     f'"{schema}".audit_events, "{schema}".incident_events, '
                     f'"{schema}".webhook_receipts, "{schema}".email_deliveries '

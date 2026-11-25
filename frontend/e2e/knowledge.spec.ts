@@ -1,0 +1,29 @@
+import { expect, test } from "@playwright/test";
+import { randomUUID } from "node:crypto";
+
+test("staff create, publish and find a versioned knowledge article", async ({ page }) => {
+  const id = randomUUID().slice(0, 8);
+  await page.goto("/register");
+  await page.getByLabel("Your name").fill("Knowledge Owner " + id);
+  await page.getByLabel("Email", { exact: true }).fill(`knowledge-${id}@example.com`);
+  await page.getByLabel("Password", { exact: true }).fill("Test-" + randomUUID());
+  await page.getByLabel("Organization name", { exact: true }).fill("Knowledge Demo " + id);
+  await page.getByLabel("Workspace address").fill("knowledge-" + id);
+  await page.getByRole("button", { name: "Create account & workspace" }).click();
+  await expect(page).toHaveURL(/\/app\/tickets$/);
+  await page.getByRole("link", { name: "Knowledge Base", exact: true }).click();
+  await page.getByRole("button", { name: "New article" }).click();
+  await page.getByLabel("URL slug").fill("password-reset-" + id);
+  await page.getByLabel("Article title").fill("Reset a forgotten password");
+  await page.getByLabel("Instructions in Markdown").fill("Open recovery and verify the account email.");
+  await page.getByRole("button", { name: "Create draft" }).click();
+  await expect(page.getByRole("heading", { name: "Reset a forgotten password" })).toBeVisible();
+  await expect(page.getByText("Index status: not_published", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Publish article" }).click();
+  await expect(page.getByText(/Index status: (pending|indexed|failed)/)).toBeVisible();
+  await page.getByRole("link", { name: "Knowledge Base" }).last().click();
+  await expect(page.getByRole("link", { name: /Reset a forgotten password/ })).toBeVisible();
+  await page.getByLabel("Search titles").fill("forgotten password");
+  await expect(page.getByRole("link", { name: /Reset a forgotten password/ })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});

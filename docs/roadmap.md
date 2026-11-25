@@ -85,7 +85,7 @@ organization and assignment rules.
   adaptation. Its synthetic results are documented with counts, timings, storage, and limits
   in [semantic retrieval](semantic-retrieval.md); they do not change M7 behavior.
 
-## Release 1.0 / M9 - Portfolio-ready hardening (L; local verification complete, CI pending)
+## Release 1.0 / M9 - Portfolio-ready hardening (completed)
 
 Independent demo: complete core workflows, recovery and evaluation evidence on a
 reproducible release image.
@@ -99,23 +99,31 @@ reproducible release image.
 - No performance claims without measured results. Production deployment target needs
   a separate decision.
 
-## Release 1.1 / M10 - Knowledge base and grounded AI Copilot (L; later, not approved)
+## Release 1.1 / M10 - Knowledge base and grounded AI Copilot (implemented; verification recorded)
 
 Independent demo: a published knowledge revision produces a human-reviewable draft
 with verifiable citations; disabled/unavailable providers leave manual workflows usable.
 
-- Immutable knowledge revisions, authorized chunk retrieval, optional embeddings and
-  hosted/local provider adapters, with test fakes.
-- Summaries and suggested drafts include input versions and provenance; no automatic
-  sending. Evaluate retrieval, citations, abstention, injection, leakage, and edit effort.
-- No mandatory paid service. Reject invented citation IDs and recheck source access.
+- M10.1 local Ollama provider and authenticated availability status.
+- M10.2 versioned tenant-scoped articles, published-only retrieval, separate Qwen KB
+  vectors, asynchronous indexing, and multilingual retrieval evaluation.
+- M10.3 source-grounded drafts, validated citations, abstention, public-message summaries,
+  and durable tenant-scoped AI runs.
+- M10.4 ticket-integrated Copilot UI with human-reviewed draft insertion.
+- M10.5 genuine bounded, allowlisted, read-only tool calling.
+- M10.6 security checks, multilingual held-out evaluation, documentation, and release
+  verification. The measured generation citation and abstention targets are not met; the
+  optional Copilot remains experimental and every draft requires human review.
+- Local-only inference, no paid API requirement, human edit/approval, and no automatic
+  customer message sending are scope constraints.
+
+See [M10 implementation and verification](m10-implementation.md), [Copilot evaluation](ai-evaluation.md), and [local AI setup](local-ai.md) for actual checks, measurements, and limitations. Do not interpret milestone completion as a production-quality claim for generated answers.
 
 ## Scope guardrails
 
 Critical path: M1 -> M2 -> M3 -> M4 customer portal/durable work -> M5 SLA -> M6
 integrations -> M7 Incident Radar -> M8 evaluated semantic search -> M9 hardening ->
-M10 AI Copilot. M9 remains pending until its pushed GitHub Actions checks pass. M10 is
-not approved; only explicitly approved scope may be built.
+M10. M10 is approved; do not extend work into any post-M10 milestone without approval.
 
 No billing, inbound email ticket creation, uploads, business-hours calendars,
 configurable roles, generic workflow builder, Kafka, Kubernetes, or microservices in

@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/ree1o/SupportFlowAI/actions/workflows/ci.yml/badge.svg)](https://github.com/ree1o/SupportFlowAI/actions/workflows/ci.yml)
 
-SupportFlow AI brings customer conversations, team workflows, SLA tracking, and incident management into one workspace. It also helps agents discover similar tickets using **local multilingual semantic search** — without sending ticket content to a hosted AI provider.
+SupportFlow AI brings customer conversations, team workflows, SLA tracking, and incident management into one workspace. Staff can discover related tickets with local multilingual semantic search and optionally use a private local AI Copilot grounded in approved Knowledge Base articles.
 
 ## What it does
 
@@ -14,6 +14,7 @@ SupportFlow AI brings customer conversations, team workflows, SLA tracking, and 
 - **Connect other systems.** Receive tickets and messages through signed webhooks with contact-scoped access, key rotation, and duplicate-event protection.
 - **Spot recurring problems.** Incident Radar groups related reports into explainable proposals that staff review before creating an incident.
 - **Find useful context faster.** Related Tickets uses local embeddings and PostgreSQL `pgvector` to surface semantically similar requests, including across languages.
+- **Draft with approved guidance.** The optional local AI Copilot summarizes public conversations, drafts cited replies, and can use a bounded set of read-only tools. Staff review every draft; nothing is sent automatically.
 - **Protect each workspace.** Organization isolation, role-based permissions, PostgreSQL row-level security, CSRF protection, audit trails, and targeted rate limits.
 
 > **AI, with human control:** Incident Radar uses explainable rules, while Related Tickets uses semantic similarity. Neither automatically diagnoses a root cause or sends AI-generated replies.
@@ -54,7 +55,52 @@ docker compose run --rm worker python -m app.semantic.setup_model
 | Email inbox (Mailpit) | http://localhost:8025 |
 | API documentation | http://localhost:8000/api/docs |
 
-**Try it:** Register an account and workspace, add a contact, and create a ticket. Post a public reply and an internal note; then explore **SLA & operations**, **Incident Radar**, and **Related Tickets**.
+**Try it:** Register an account and workspace, add a contact, and create a ticket. Post a public reply and an internal note; then explore **SLA & operations**, **Incident Radar**, **Related Tickets**, and the Knowledge Base.
+
+### Optional local AI
+
+The helpdesk works without Ollama. To opt in on Windows, install Ollama locally and
+download the documented model once:
+
+```powershell
+ollama pull qwen3.5:4b-q4_K_M
+docker compose run --rm worker-ai python -m app.knowledge.setup_model
+```
+
+In the ignored `.env`, set `SUPPORTFLOW_AI_ENABLED=true` and keep the approved local
+endpoint `SUPPORTFLOW_AI_OLLAMA_URL=http://host.docker.internal:11434`. Restart with
+`docker compose up --build -d --wait`. Restrict Ollama access to the local host/Docker
+network; never expose its unauthenticated API publicly. See [local AI setup](docs/local-ai.md)
+and [Copilot security and behavior](docs/ai-copilot.md).
+
+The Copilot is experimental. The current held-out synthetic evaluation missed its proposed
+grounding and abstention targets; every generated draft must be checked and edited by a
+staff member before use. The system never sends generated replies automatically. See the
+[evaluation report](docs/ai-evaluation.md) for the measured results and limitations.
+
+### Run checks
+
+Use a dedicated disposable PostgreSQL database whose name ends in `_test`; never point
+`TEST_DATABASE_URL` at the normal development database. With the project virtual environment
+and database access configured:
+
+```powershell
+$env:TEST_DATABASE_URL = "postgresql+psycopg://<test-user>:<test-password>@127.0.0.1:15432/supportflow_test"
+cd backend
+..\.venv\Scripts\pytest.exe
+..\.venv\Scripts\ruff.exe check .
+..\.venv\Scripts\ruff.exe format --check .
+..\.venv\Scripts\python.exe -m mypy app
+..\.venv\Scripts\python.exe -m pip check
+cd ..\frontend
+npm.cmd run build
+npm.cmd run test:e2e
+```
+
+The opt-in local-model smoke test is separate: set `RUN_LOCAL_AI_SMOKE=1` only after
+configuring the documented local Ollama model. Standard CI does not download or run a
+generative model. There are no default demo credentials; create synthetic demo accounts
+through onboarding and use Mailpit for local invitation/verification messages.
 
 To stop the stack safely:
 
@@ -68,6 +114,6 @@ The PostgreSQL volume is preserved by `docker compose down`. **Do not use `down 
 
 ## Tested and documented
 
-The verified release includes **164 passing backend tests**, **16 Playwright browser scenarios**, and successful GitHub Actions checks for the backend, frontend, and Docker Compose smoke test.
+The M10 local verification run completed **201 backend tests**, with one opt-in real-model smoke test intentionally skipped in the standard suite and then run separately (**1 passed**). **20 desktop/mobile Playwright scenarios** passed. The local Copilot evaluation, its unmet quality targets, and the remaining limitations are reported in [M10 evaluation](docs/ai-evaluation.md). GitHub Actions results are linked from the status badge above.
 
-**Explore the details:** [Architecture](docs/architecture.md) · [Customer portal](docs/customer-portal.md) · [SLA](docs/sla.md) · [Integrations](docs/integrations.md) · [Incident Radar](docs/incident-radar.md) · [Semantic search](docs/semantic-retrieval.md) · [Security](docs/security-hardening.md) · [Backup & recovery](docs/backup-recovery.md) · [Verification](docs/m9-verification.md)
+**Explore the details:** [Architecture](docs/architecture.md) · [Customer portal](docs/customer-portal.md) · [SLA](docs/sla.md) · [Integrations](docs/integrations.md) · [Incident Radar](docs/incident-radar.md) · [Semantic search](docs/semantic-retrieval.md) · [Knowledge Base and Copilot](docs/ai-copilot.md) · [AI evaluation](docs/ai-evaluation.md) · [Local model setup](docs/local-ai.md) · [Security](docs/security-hardening.md) · [Backup & recovery](docs/backup-recovery.md) · [Verification](docs/m9-verification.md) · [Release walkthrough](docs/release-readiness.md)

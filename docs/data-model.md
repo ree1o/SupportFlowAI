@@ -5,8 +5,10 @@ sessions, organizations and memberships. M3 migration `0003_tickets` adds contac
 categories, tickets, messages and audit_events. M4-M6 add customer access/jobs, SLA,
 and integrations as described below. M7 adds incident and deterministic Radar tables.
 M8 adds the semantic index described in [semantic-retrieval.md](semantic-retrieval.md).
-M9 adds database policy/role configuration without adding business-domain tables;
-generative AI tables remain future designs.
+M9 adds database policy/role configuration without adding business-domain tables.
+M10.2 adds a versioned internal Knowledge Base with separate 1024D chunk vectors;
+M10.3 adds durable AI run/provenance records and M10.5 stores only safe tool names in
+the run result. AI result text is redacted by retention policy, while the run row remains.
 See [identity design](identity.md) and [ticket design](tickets.md) for implemented
 constraints, transactions, indexes and the current ER diagram.
 
@@ -20,7 +22,9 @@ constraints, transactions, indexes and the current ER diagram.
 | 0.3 / M7 | incidents, incident_tickets, incident_events, radar_runs, radar_proposals, radar_proposal_tickets, radar_suppressions |
 | M8 | ticket_embeddings: local 384-dimensional vectors, source digest/version, model and retry/index state |
 | M9 | RLS policies and `supportflow_runtime` role; no new application domain tables |
-| 1.1 | knowledge_articles, article_revisions, knowledge_chunks, ai_runs, ai_suggestions, suggestion_feedback |
+| M10.2 | knowledge_articles, knowledge_article_versions, knowledge_chunks (separate 1024D model version) |
+| M10.3 | ai_runs: organization/ticket/requester scoped, action/status, expected ticket version, idempotency key, model digest, safe result metadata and latency |
+| M10.5 | No new tool tables; run results may include validated citation references and allowlisted tool names |
 
 ```mermaid
 erDiagram
@@ -50,6 +54,9 @@ erDiagram
     ORGANIZATIONS ||--o{ KNOWLEDGE_ARTICLES : owns
     KNOWLEDGE_ARTICLES ||--|{ ARTICLE_REVISIONS : versions
     ARTICLE_REVISIONS ||--o{ KNOWLEDGE_CHUNKS : indexes
+    ORGANIZATIONS ||--o{ AI_RUNS : owns
+    TICKETS ||--o{ AI_RUNS : context
+    MEMBERSHIPS ||--o{ AI_RUNS : requested_by
 ```
 
 Every tenant-owned record has organization_id. Composite tenant foreign keys prevent
@@ -70,6 +77,9 @@ tenant-filtered pgvector cosine distance rather than an approximate vector index
 plans and filtered recall before considering ANN.
 
 Transactions cover whole use cases: ticket+first message+audit+outbox, reply+first-response
-timestamp, proposal confirmation+incident links. No external API or SMTP call runs inside
-a database transaction. Deleting/anonymizing source data must also address embeddings,
-derived output, logs, and retention obligations in release 1.0.
+timestamp, proposal confirmation+incident links, and AI run+outbox+job. No external API or
+SMTP call runs inside a business transaction. `ai_runs` uses forced RLS and tenant-aware
+composite ticket/requester foreign keys. Generated reply/summary text is cleared after 30
+days by default; the run's safe status, timestamps, model identity and latency remain.
+Deleting/anonymizing source data must also address embeddings, derived output, logs, and
+retention obligations.

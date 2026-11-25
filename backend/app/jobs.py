@@ -7,6 +7,8 @@ from uuid import UUID
 from celery import Celery  # type: ignore[import-untyped]
 from sqlalchemy import or_, select
 
+from app.ai import models as ai_models  # noqa: F401 -- load M10 metadata in worker
+from app.ai.provider import ProviderUnavailable
 from app.config import Settings
 from app.customers.models import BackgroundJob, EmailDelivery, OutboxEvent
 from app.database import Database
@@ -14,6 +16,7 @@ from app.identity import models as identity_models  # noqa: F401 -- load all FK 
 from app.identity.models import Organization
 from app.identity.security import utcnow
 from app.incidents import models as incident_models  # noqa: F401 -- load M7 metadata in worker
+from app.knowledge import models as knowledge_models  # noqa: F401 -- load M10 metadata in worker
 from app.semantic import models as semantic_models  # noqa: F401 -- load M8 metadata in worker
 from app.sla import models as sla_models  # noqa: F401 -- load M5 metadata in worker
 from app.tenancy import set_tenant_context
@@ -23,6 +26,11 @@ logger = logging.getLogger("supportflow.jobs")
 settings = Settings()
 celery_app = Celery("supportflow", broker=settings.redis_url)
 celery_app.conf.update(
+    task_default_queue="default",
+    task_routes={
+        "supportflow.index_knowledge_version": {"queue": "ai"},
+        "supportflow.execute_ai_run": {"queue": "ai"},
+    },
     task_acks_late=True,
     task_reject_on_worker_lost=True,
     worker_prefetch_multiplier=1,
@@ -55,6 +63,14 @@ celery_app.conf.update(
             "task": "supportflow.cleanup_transient_data",
             "schedule": 86400.0,
         },
+        "dispatch-knowledge-index": {
+            "task": "supportflow.dispatch_knowledge_index",
+            "schedule": 10.0,
+        },
+        "recover-ai-runs": {
+            "task": "supportflow.recover_ai_runs",
+            "schedule": 60.0,
+        },
     },
 )
 
@@ -77,6 +93,7 @@ def process_one(database: Database) -> bool:
             .join(OutboxEvent, OutboxEvent.id == BackgroundJob.outbox_event_id)
             .where(
                 OutboxEvent.processed_at.is_(None),
+                OutboxEvent.event_type != "knowledge.index",
                 BackgroundJob.available_at <= now,
                 or_(
                     BackgroundJob.status == "pending",
@@ -112,6 +129,17 @@ def process_one(database: Database) -> bool:
                     raise ValueError("Tenant-scoped semantic event is missing its organization")
                 set_tenant_context(db, organization_id)
                 process_outbox_embedding(db, UUID(payload["embedding_id"]), Settings())
+        elif event.event_type == "ai.generate":
+            if organization_id is None:
+                raise ValueError("AI generation event is missing its organization")
+            run_id = UUID(payload["run_id"])
+            execute_ai_run.apply_async(
+                args=[str(organization_id), str(run_id)],
+                queue="ai",
+                task_id=str(run_id),
+            )
+            mark_complete(database, job_id, event_id, event_key, record_email_delivery=False)
+            return True
         else:
             with database.session() as db:
                 if db.scalar(select(EmailDelivery.id).where(EmailDelivery.event_key == event_key)):
@@ -166,16 +194,27 @@ def process_one(database: Database) -> bool:
     return True
 
 
-def mark_complete(database: Database, job_id: UUID, event_id: UUID, event_key: str) -> None:
+def mark_complete(
+    database: Database,
+    job_id: UUID,
+    event_id: UUID,
+    event_key: str,
+    *,
+    record_email_delivery: bool = True,
+) -> None:
     with database.session() as db:
         job = db.scalar(select(BackgroundJob).where(BackgroundJob.id == job_id).with_for_update())
         event = db.get(OutboxEvent, event_id)
         if job is None or event is None:
             return
         if job.status != "completed":
-            if not event_key.startswith("semantic-index:") and (
-                db.scalar(select(EmailDelivery.id).where(EmailDelivery.event_key == event_key))
-                is None
+            if (
+                record_email_delivery
+                and not event_key.startswith("semantic-index:")
+                and (
+                    db.scalar(select(EmailDelivery.id).where(EmailDelivery.event_key == event_key))
+                    is None
+                )
             ):
                 db.add(EmailDelivery(event_key=event_key))
             now = utcnow()
@@ -318,6 +357,112 @@ def backfill_semantic_index() -> int:
     try:
         with database.session() as db:
             return schedule_missing(db, Settings(), limit=50)
+    finally:
+        database.dispose()
+
+
+@celery_app.task(
+    name="supportflow.dispatch_knowledge_index",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True,
+    max_retries=5,
+)
+def dispatch_knowledge_index() -> int:
+    from app.knowledge.worker import dispatch_due, release_dispatch
+
+    database = Database(Settings())
+    try:
+        with database.session() as db:
+            work = dispatch_due(db)
+        dispatched = 0
+        for organization_id, article_id, revision, lease_token in work:
+            try:
+                index_knowledge_version.apply_async(
+                    args=[str(organization_id), str(article_id), revision, lease_token],
+                    queue="ai",
+                    task_id=lease_token,
+                )
+                dispatched += 1
+            except Exception as exc:
+                with database.session() as db:
+                    release_dispatch(db, organization_id, article_id, revision, lease_token)
+                logger.warning(
+                    "knowledge_index_dispatch_failed article_id=%s error_type=%s",
+                    str(article_id),
+                    type(exc).__name__,
+                )
+        return dispatched
+    finally:
+        database.dispose()
+
+
+@celery_app.task(name="supportflow.index_knowledge_version", acks_late=True)
+def index_knowledge_version(
+    organization_id: str, article_id: str, revision: int, lease_token: str
+) -> str:
+    from app.knowledge.worker import process_index
+
+    config = Settings()
+    database = Database(config)
+    try:
+        with database.session() as db:
+            return process_index(
+                db, UUID(organization_id), UUID(article_id), revision, lease_token, config
+            )
+    finally:
+        database.dispose()
+
+
+@celery_app.task(bind=True, name="supportflow.execute_ai_run", max_retries=2, acks_late=True)
+def execute_ai_run(self, organization_id: str, run_id: str) -> str:
+    from app.ai.service import process_run
+
+    config = Settings()
+    database = Database(config)
+    try:
+        with database.session() as db:
+            try:
+                result = process_run(db, UUID(organization_id), UUID(run_id), config)
+            except ProviderUnavailable as exc:
+                countdown = min(30, 5 * (2**self.request.retries))
+                raise self.retry(exc=exc, countdown=countdown) from exc
+        return result
+    finally:
+        database.dispose()
+
+
+@celery_app.task(
+    name="supportflow.recover_ai_runs",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True,
+    max_retries=5,
+)
+def recover_ai_runs() -> int:
+    from app.ai.service import recover_runs
+
+    database = Database(Settings())
+    try:
+        with database.session() as db:
+            organization_ids = list(db.scalars(select(Organization.id).order_by(Organization.id)))
+            dispatch: list[tuple[UUID, UUID]] = []
+            for organization_id in organization_ids:
+                if len(dispatch) >= 100:
+                    break
+                dispatch.extend(
+                    (organization_id, run_id)
+                    for run_id in recover_runs(
+                        db, organization_id, limit=min(25, 100 - len(dispatch))
+                    )
+                )
+        for organization_id, run_id in dispatch:
+            execute_ai_run.apply_async(
+                args=[str(organization_id), str(run_id)],
+                queue="ai",
+                task_id=str(run_id),
+            )
+        return len(dispatch)
     finally:
         database.dispose()
 

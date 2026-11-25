@@ -11,8 +11,8 @@ from sqlalchemy.exc import IntegrityError
 from app.customers.models import BackgroundJob, OutboxEvent
 from app.identity.security import utcnow
 from app.main import create_app
-from app.semantic.models import MODEL_VERSION, TicketEmbedding
-from app.tickets.models import Ticket
+from app.semantic.models import LEGACY_MODEL_VERSION, MODEL_VERSION, TicketEmbedding
+from app.tickets.models import Message, Ticket
 
 pytestmark = pytest.mark.integration
 ORIGIN = "http://localhost:5173"
@@ -193,6 +193,43 @@ def test_related_retrieval_is_staff_only_tenant_scoped_and_excludes_internal_not
         ).status_code
         == 403
     )
+
+
+def test_existing_m8_vectors_remain_searchable_during_runtime_reindex(search_desk):
+    from app.semantic.embedding import content_digest
+
+    desk = search_desk
+    source = create_ticket(desk, "Source request", "Public source anchor details")
+    candidate = create_ticket(desk, "Candidate request", "Public related candidate details")
+    vectors = [
+        [1.0] + [0.0] * 383,
+        [0.8, 0.6] + [0.0] * 382,
+    ]
+    for ticket, vector in zip([source, candidate], vectors, strict=True):
+        with desk["db"].session() as db:
+            row = db.scalar(select(Ticket).where(Ticket.id == UUID(ticket["id"])))
+            assert row
+            messages = list(db.scalars(select(Message).where(Message.ticket_id == row.id)))
+            assert messages
+            db.add(
+                TicketEmbedding(
+                    organization_id=row.organization_id,
+                    ticket_id=row.id,
+                    model_version=LEGACY_MODEL_VERSION,
+                    content_digest=content_digest(row.title, messages[0].body),
+                    source_version=row.version,
+                    is_current=True,
+                    status="ready",
+                    embedding=vector,
+                )
+            )
+            db.commit()
+    response = desk["clients"]["owner"].get(
+        f"/api{desk['root']}/tickets/{source['id']}/related?limit=1"
+    )
+    assert response.status_code == 200
+    assert response.json()["model_version"] == LEGACY_MODEL_VERSION
+    assert response.json()["items"][0]["id"] == candidate["id"]
 
 
 def test_worker_failure_is_safe_and_manager_backfill_retries_failed_index(search_desk, monkeypatch):

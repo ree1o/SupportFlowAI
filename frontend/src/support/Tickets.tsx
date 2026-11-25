@@ -7,6 +7,7 @@ import {
 } from "react-router-dom";
 import { api, ApiError, type Member, type Organization } from "../api";
 import { ErrorText, message, useAuth } from "../auth";
+import { CopilotPanel } from "../ai/CopilotPanel";
 import { useRemote } from "./remote";
 import {
   priorities,
@@ -554,6 +555,15 @@ export function TicketDetail({ org }: { org: Organization }) {
               )}
             />
           </section>
+          <CopilotPanel
+            org={org}
+            ticketId={ticket.id}
+            ticketVersion={ticket.version}
+            onInsert={(draft) => {
+              setMode("reply");
+              setReply(draft);
+            }}
+          />
           <section
             className={`panel composer ${mode === "note" ? "note-composer" : ""}`}
           >

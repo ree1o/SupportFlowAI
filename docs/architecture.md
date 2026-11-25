@@ -1,6 +1,6 @@
-# Architecture — approved direction and M9 implementation
+# Architecture — approved direction and M10 implementation
 
-Status: approved direction with release adjustments, 2026-10-31.
+Status: approved direction through M10.5; M10.6 release evaluation and verification in progress.
 This document distinguishes intended architecture from implemented functionality.
 M1–M9 are implemented. See [identity design](identity.md), [ticket design](tickets.md),
 and [customer portal design](customer-portal.md) for current endpoints, permissions,
@@ -8,7 +8,9 @@ security, transaction rules and limitations. SLA semantics are documented in [sl
 inbound signatures and receipts are documented in [integrations.md](integrations.md),
 and incidents in [incident-radar.md](incident-radar.md). M8 semantic retrieval is
 documented in [semantic-retrieval.md](semantic-retrieval.md); release hardening is in
-[security-hardening.md](security-hardening.md). Generative AI remains optional M10.
+[security-hardening.md](security-hardening.md). M10 local generation remains optional;
+see [local AI](local-ai.md), [Copilot design](ai-copilot.md), and
+[AI evaluation](ai-evaluation.md).
 
 ## Product and scope
 
@@ -86,7 +88,9 @@ flowchart TB
     Relay --> Redis
     Workers --> Retrieval[Authorized lexical / semantic retrieval]
     Retrieval --> DB
-    Workers -.-> LLM[Optional generation provider in 1.1]
+    Workers --> AIRuns[Bounded AI run orchestration]
+    AIRuns --> DB
+    AIRuns -.->|local only, optional| Ollama[Ollama on developer host]
 ```
 
 Inbound webhook verification is an API boundary in the same modular monolith. It verifies
@@ -102,13 +106,28 @@ access/notifications, SLA, incidents, knowledge, AI assistance, reporting.
 Routes validate/authenticate and call services. Services enforce policy and own writes.
 Focused queries are sufficient; no generic repository framework is required.
 Tickets do not depend on AI. Incidents can be managed without detection models.
-Workers call the same services as API handlers. Reporting is read-only. Semantic
-indexing is transactionally queued in the existing PostgreSQL outbox, uses the existing
-Celery/Redis workers, and does not run in ticket requests. FastEmbed's pinned ONNX
-runtime loads only an explicitly prepared local cache; absent weights cause a tracked
-retryable indexing failure, not a failed ticket operation. Related-ticket queries filter
-organization and staff visibility in PostgreSQL and use exact cosine distance. See
-[semantic retrieval](semantic-retrieval.md) for source selection, privacy, and evaluation.
+Workers call the same services as API handlers. Reporting is read-only. Ticket and
+Knowledge Base indexing are transactionally queued in PostgreSQL outbox records. The
+general Celery worker remains on the default queue; one single-concurrency `ai` worker
+isolates Qwen indexing and local generation from email, SLA and routine outbox work.
+FastEmbed's pinned ONNX models load only from an explicitly prepared local cache;
+missing weights cause tracked retryable failures, not failed tickets or article
+publication. Related-ticket and Knowledge Base queries scope organization and access in
+PostgreSQL before returning previews or source chunks. See
+[semantic retrieval](semantic-retrieval.md) for M8 and M10 model/version boundaries.
+
+M10 generation remains opt-in and uses no hosted inference provider. Ticket requests
+create an `ai_runs` row, an outbox event and a background job in one PostgreSQL
+transaction. The isolated `ai` worker performs bounded local inference outside that
+transaction. It revalidates the requester's active membership, ticket scope and ticket
+version before each tool call and before result commit. Ollama failures leave the
+helpdesk usable and use the existing durable recovery/retry lifecycle.
+
+The Knowledge Base has immutable revisions and a distinct 1024D embedding namespace;
+M8 ticket retrieval remains a separate 384D index with model-version fallback. Replies
+retrieve current published article chunks and cite only validated source references.
+Internal notes, contact details, incident investigation data and other tickets are never
+sent in the model prompt. Summaries use bounded public conversation context.
 
 ## Session, health, configuration, and logs (M1)
 
@@ -163,6 +182,15 @@ outbox polling span organizations; specific account/customer tables have own-use
 hashed-token lookup policies. See [security hardening](security-hardening.md) for the
 full table matrix and residual shared-worker capability. Do not admit real customer
 data before a deployment review.
+
+M10 adds `ai_runs` under forced RLS with composite ticket and requester-membership
+references. Runtime permissions allow select/insert/update, not delete. Tool results are
+bounded and sanitized: `search_knowledge_base` can query only published, current articles
+in the authorized tenant; `get_sla_status` accepts no arguments and reads only the ticket
+already bound to the run. Tool names and validated source references may be returned, but
+tool arguments, prompts, full context, hidden reasoning, and secrets are not persisted.
+Generated result content is redacted after the configurable 30-day default while run
+lifecycle metadata remains. Customers cannot create or read AI runs.
 
 In 0.2, business change + audit + outbox are one transaction. Publishing may repeat.
 Logical operation IDs, unique effects, expiring claims, bounded retries, recovery,

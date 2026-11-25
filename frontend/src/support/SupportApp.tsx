@@ -7,6 +7,7 @@ import { TicketQueue, TicketCreate, TicketDetail } from "./Tickets";
 import { Operations } from "./Operations";
 import { Integrations } from "./Integrations";
 import { IncidentRadar } from "../incidents/IncidentRadar";
+import { KnowledgeBase } from "../knowledge/KnowledgeBase";
 
 export function SupportApp() {
   const { current } = useAuth();
@@ -27,6 +28,8 @@ export function SupportApp() {
             <Route path="operations" element={<Operations org={org} />} />
             <Route path="integrations" element={<Integrations org={org} />} />
             <Route path="incidents" element={<IncidentRadar org={org} />} />
+            <Route path="knowledge" element={<KnowledgeBase org={org} />} />
+            <Route path="knowledge/:id" element={<KnowledgeBase org={org} />} />
             <Route path="*" element={<Navigate to="/app/tickets" replace />} />
           </Routes>
         ) : (

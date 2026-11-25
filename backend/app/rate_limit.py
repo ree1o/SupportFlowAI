@@ -4,7 +4,7 @@ import hashlib
 import hmac
 import math
 from collections.abc import Callable
-from typing import Annotated, Any, cast
+from typing import Annotated, Any, Literal, cast
 
 from fastapi import Depends, Request
 from redis import Redis
@@ -60,13 +60,24 @@ def limiter(request: Request) -> RateLimiter:
     return request.app.state.rate_limiter
 
 
-def limited(bucket: str, limit: int, window_seconds: int) -> Callable:
+def limited(
+    bucket: str,
+    limit: int,
+    window_seconds: int,
+    *,
+    identity_scope: Literal["client", "organization", "global"] = "client",
+) -> Callable:
     def dependency(request: Request, service: Annotated[RateLimiter, Depends(limiter)]) -> None:
-        client_ip = request.client.host if request.client else "unknown"
-        route_scope = request.path_params.get("organization_id") or request.path_params.get(
-            "source_id", ""
-        )
-        identity = f"{client_ip}:{route_scope}"
+        if identity_scope == "global":
+            identity = "global"
+        elif identity_scope == "organization":
+            identity = str(request.path_params.get("organization_id") or "unknown")
+        else:
+            client_ip = request.client.host if request.client else "unknown"
+            route_scope = request.path_params.get("organization_id") or request.path_params.get(
+                "source_id", ""
+            )
+            identity = f"{client_ip}:{route_scope}"
         retry_after = service.check(
             bucket=bucket,
             identity=identity,

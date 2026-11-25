@@ -36,6 +36,7 @@ export async function api<T>(
   path: string,
   method = "GET",
   body?: unknown,
+  extraHeaders: Record<string, string> = {},
 ): Promise<T> {
   const headers: Record<string, string> = {};
   if (method !== "GET") {
@@ -49,6 +50,7 @@ export async function api<T>(
     headers["X-CSRF-Token"] = csrf.csrf_token;
     headers["Content-Type"] = "application/json";
   }
+  Object.assign(headers, extraHeaders);
   let response: Response;
   try {
     response = await fetch(`/api${path}`, {

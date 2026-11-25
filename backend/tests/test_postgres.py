@@ -26,9 +26,7 @@ def test_migration_upgrade_downgrade_and_readiness(postgres):
         command.upgrade(alembic, "head")
         assert client.get("/api/health/ready").status_code == 200
     with database.engine.connect() as connection:
-        assert MigrationContext.configure(connection).get_current_heads() == (
-            "0009_release_hardening",
-        )
+        assert MigrationContext.configure(connection).get_current_heads() == ("0011_ai_runs",)
     assert set(inspect(database.engine).get_table_names()) == {
         "alembic_version",
         "users",
@@ -60,6 +58,10 @@ def test_migration_upgrade_downgrade_and_readiness(postgres):
         "radar_proposal_tickets",
         "radar_suppressions",
         "ticket_embeddings",
+        "knowledge_articles",
+        "knowledge_article_versions",
+        "knowledge_chunks",
+        "ai_runs",
     }
     command.check(alembic)
 

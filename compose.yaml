@@ -28,6 +28,8 @@ x-backend: &backend
     SUPPORTFLOW_AI_SUMMARY_MAX_TOKENS: ${SUPPORTFLOW_AI_SUMMARY_MAX_TOKENS:-700}
     SUPPORTFLOW_AI_TEMPERATURE: ${SUPPORTFLOW_AI_TEMPERATURE:-0.15}
     SUPPORTFLOW_AI_KEEP_ALIVE: ${SUPPORTFLOW_AI_KEEP_ALIVE:-1m}
+    SUPPORTFLOW_AI_RESULT_RETENTION_DAYS: ${SUPPORTFLOW_AI_RESULT_RETENTION_DAYS:-30}
+    SUPPORTFLOW_KNOWLEDGE_INDEX_MAX_ATTEMPTS: ${SUPPORTFLOW_KNOWLEDGE_INDEX_MAX_ATTEMPTS:-5}
     SUPPORTFLOW_EMAIL_FROM: ${SUPPORTFLOW_EMAIL_FROM:-support@supportflow.local}
     SUPPORTFLOW_PUBLIC_APP_URL: ${SUPPORTFLOW_PUBLIC_APP_URL:-http://localhost:5173}
     SUPPORTFLOW_RADAR_LOOKBACK_HOURS: ${SUPPORTFLOW_RADAR_LOOKBACK_HOURS:-72}
@@ -101,6 +103,8 @@ services:
       - -A
       - app.jobs.celery_app
       - worker
+      - -Q
+      - default
       - --beat
       - --schedule=/tmp/supportflow-celerybeat
       - --loglevel=INFO
@@ -111,6 +115,27 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_started
+    volumes:
+      - semantic_model_cache:/var/cache/supportflow/models
+    restart: unless-stopped
+
+  worker-ai:
+    <<: *backend
+    command:
+      - celery
+      - -A
+      - app.jobs.celery_app
+      - worker
+      - -Q
+      - ai
+      - --concurrency=1
+      - --prefetch-multiplier=1
+      - --loglevel=INFO
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     volumes:
       - semantic_model_cache:/var/cache/supportflow/models
     restart: unless-stopped

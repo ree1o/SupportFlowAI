@@ -1,0 +1,482 @@
+[
+  {
+    "id": "password_reset",
+    "category": "Account access",
+    "documents": {
+      "en": [
+        "Resetting a password",
+        "Open account recovery, enter the verified email, and use the single-use reset link before it expires."
+      ],
+      "ru": [
+        "Сброс пароля",
+        "Откройте восстановление доступа, укажите подтверждённую почту и перейдите по одноразовой ссылке до её истечения."
+      ],
+      "kk": [
+        "Құпиясөзді қалпына келтіру",
+        "Тіркелгіні қалпына келтіруді ашып, расталған электрондық поштаны енгізіңіз және мерзімі бітпей тұрып бір реттік сілтемені пайдаланыңыз."
+      ]
+    },
+    "queries": [
+      [
+        "en",
+        "How can a user set a new password after forgetting the old one?"
+      ],
+      [
+        "en",
+        "The password recovery email arrived but the reset link is no longer valid."
+      ],
+      [
+        "ru",
+        "Как восстановить доступ, если старый пароль забыт?"
+      ],
+      [
+        "kk",
+        "Ескі құпиясөзді ұмытып қалсам, аккаунтқа қайта қалай кіремін?"
+      ],
+      [
+        "ru",
+        "Сілтеме істемей тұр"
+      ]
+    ]
+  },
+  {
+    "id": "card_decline",
+    "category": "Billing",
+    "documents": {
+      "en": [
+        "Card payment declined",
+        "Check the billing address and card expiry, confirm online purchases with the bank, then retry using the same checkout."
+      ],
+      "ru": [
+        "Отказ оплаты картой",
+        "Проверьте платёжный адрес и срок действия карты, разрешите интернет-покупки в банке и повторите оплату."
+      ],
+      "kk": [
+        "Картамен төлем қабылданбады",
+        "Төлем мекенжайы мен картаның мерзімін тексеріп, банкте интернет төлемге рұқсат беріп, қайта төлеңіз."
+      ]
+    },
+    "queries": [
+      [
+        "en",
+        "Why does checkout reject a valid bank card?"
+      ],
+      [
+        "en",
+        "My bank says the card is okay but the purchase is declined."
+      ],
+      [
+        "ru",
+        "Банк отклоняет оплату при оформлении заказа, что проверить?"
+      ],
+      [
+        "kk",
+        "Банк картасы жарамды, бірақ сатып алу кезінде төлем өтпеді."
+      ],
+      [
+        "ru",
+        "Төлем қатесі"
+      ]
+    ]
+  },
+  {
+    "id": "refund_status",
+    "category": "Billing",
+    "documents": {
+      "en": [
+        "Refund processing time",
+        "Approved refunds return to the original payment method; banks usually post the credit within five to ten business days."
+      ],
+      "ru": [
+        "Срок возврата средств",
+        "Одобренный возврат отправляется на исходный способ оплаты; банк обычно зачисляет деньги за пять-десять рабочих дней."
+      ],
+      "kk": [
+        "Ақшаны қайтару мерзімі",
+        "Мақұлданған қайтарым бастапқы төлем әдісіне жіберіледі; банк қаражатты бес-он жұмыс күнінде түсіреді."
+      ]
+    },
+    "queries": [
+      [
+        "en",
+        "When should the money from an approved return appear?"
+      ],
+      [
+        "en",
+        "A cancellation was approved but I cannot see the credit on my statement."
+      ],
+      [
+        "ru",
+        "Сколько ждать зачисления одобренного возврата на карту?"
+      ],
+      [
+        "kk",
+        "Мақұлданған қайтарылған ақша шотта қашан көрінеді?"
+      ],
+      [
+        "en",
+        "Payment error help with my invoice."
+      ]
+    ]
+  },
+  {
+    "id": "mfa_delivery",
+    "category": "Account access",
+    "documents": {
+      "en": [
+        "Two-step code not received",
+        "Check the authenticator device clock, use a current backup code, and verify that the account has the correct phone number."
+      ],
+      "ru": [
+        "Не приходит код двухэтапной проверки",
+        "Проверьте время на устройстве-аутентификаторе, используйте резервный код и убедитесь, что указан верный телефон."
+      ],
+      "kk": [
+        "Екі қадамды растау коды келмеді",
+        "Аутентификатор құрылғысының уақытын тексеріп, сақтық кодын пайдаланыңыз және дұрыс телефон нөмірі көрсетілгеніне көз жеткізіңіз."
+      ]
+    },
+    "queries": [
+      [
+        "en",
+        "The login verification number never arrives on my phone."
+      ],
+      [
+        "en",
+        "Authenticator codes keep failing even though my password works."
+      ],
+      [
+        "ru",
+        "Не получаю одноразовый код для входа в профиль."
+      ],
+      [
+        "kk",
+        "Жүйеге кіруге арналған растау коды телефоныма түспейді."
+      ],
+      [
+        "ru",
+        "Не могу войти и получаю ошибку."
+      ]
+    ]
+  },
+  {
+    "id": "duplicate_invoice",
+    "category": "Billing",
+    "documents": {
+      "en": [
+        "Duplicate invoice charge",
+        "Compare the invoice identifier and payment dates before disputing a repeated charge; pending bank authorizations may disappear automatically."
+      ],
+      "ru": [
+        "Повторное списание по счёту",
+        "Сравните номер счёта и даты операций; временная банковская блокировка может исчезнуть автоматически."
+      ],
+      "kk": [
+        "Шот бойынша қайталанған төлем",
+        "Дауды бастамас бұрын шот нөмірі мен төлем күнін салыстырыңыз; банктің уақытша бұғаттауы өзі жоғалуы мүмкін."
+      ]
+    },
+    "queries": [
+      [
+        "en",
+        "I may have been billed twice for one subscription period."
+      ],
+      [
+        "en",
+        "Two identical payments appear against the same invoice."
+      ],
+      [
+        "ru",
+        "В выписке две операции по одной и той же квитанции."
+      ],
+      [
+        "kk",
+        "Бір жазылым кезеңі үшін екі рет ақша алынған сияқты."
+      ],
+      [
+        "en",
+        "A new invoice is missing after a profile update."
+      ]
+    ]
+  },
+  {
+    "id": "account_lockout",
+    "category": "Account access",
+    "documents": {
+      "en": [
+        "Account temporarily locked",
+        "Repeated failed sign-in attempts trigger a temporary lock; wait for the lock window or reset the password before trying again."
+      ],
+      "ru": [
+        "Временная блокировка аккаунта",
+        "Многократные неверные попытки входа включают временную блокировку; дождитесь её окончания или смените пароль."
+      ],
+      "kk": [
+        "Тіркелгі уақытша бұғатталды",
+        "Қате кіру әрекеттері көп болса, уақытша шектеу қойылады; күтіңіз немесе құпиясөзді ауыстырыңыз."
+      ]
+    },
+    "queries": [
+      [
+        "en",
+        "Too many sign-in attempts have locked me out for a while."
+      ],
+      [
+        "en",
+        "I entered my credentials wrong several times and now access is blocked."
+      ],
+      [
+        "ru",
+        "После нескольких ошибок входа аккаунт заблокирован."
+      ],
+      [
+        "kk",
+        "Кіру деректерін бірнеше рет қате енгізген соң аккаунт жабылды."
+      ],
+      [
+        "ru",
+        "Оплата не работает, нужна помощь."
+      ]
+    ]
+  },
+  {
+    "id": "upload_size",
+    "category": "Files",
+    "documents": {
+      "en": [
+        "Attachment size limit",
+        "Each support attachment must be below 20 MB; compress the file or share a permitted text export instead."
+      ],
+      "ru": [
+        "Ограничение размера вложения",
+        "Каждый файл обращения должен быть меньше 20 МБ; сожмите его или приложите текстовую выгрузку."
+      ],
+      "kk": [
+        "Тіркеме көлемінің шегі",
+        "Қолдау сұрауына тіркелетін әр файл 20 МБ-тан кіші болуы керек; файлды сығыңыз немесе мәтіндік нұсқасын жіберіңіз."
+      ]
+    },
+    "queries": [
+      [
+        "en",
+        "Why is the large document rejected when I attach it?"
+      ],
+      [
+        "en",
+        "My upload fails because the screenshot bundle is too big."
+      ],
+      [
+        "ru",
+        "Не получается прикрепить большой файл к обращению."
+      ],
+      [
+        "kk",
+        "Қолдау өтініміне үлкен файлды тіркей алмай жатырмын."
+      ],
+      [
+        "en",
+        "Email notification stopped after changing my account."
+      ]
+    ]
+  },
+  {
+    "id": "email_notifications",
+    "category": "Notifications",
+    "documents": {
+      "en": [
+        "Ticket email notifications",
+        "Check notification preferences, spam folders, and the verified account address; automated updates are sent only while email notifications are enabled."
+      ],
+      "ru": [
+        "Уведомления по электронной почте",
+        "Проверьте настройки уведомлений, папку спама и подтверждённый адрес аккаунта."
+      ],
+      "kk": [
+        "Электрондық пошта хабарламалары",
+        "Хабарлама баптауларын, спам қалтасын және расталған тіркелгі мекенжайын тексеріңіз."
+      ]
+    },
+    "queries": [
+      [
+        "en",
+        "I stopped getting messages when support answers my request."
+      ],
+      [
+        "en",
+        "Customer service replied but no alert reached my inbox."
+      ],
+      [
+        "ru",
+        "Не приходят письма, когда специалист отвечает на заявку."
+      ],
+      [
+        "kk",
+        "Қолдау қызметі жауап бергенде поштаға хабарлама түспейді."
+      ],
+      [
+        "ru",
+        "Ошибка загрузки файла"
+      ]
+    ]
+  },
+  {
+    "id": "checkout_timeout",
+    "category": "Checkout",
+    "documents": {
+      "en": [
+        "Checkout request timed out",
+        "If checkout spins without confirmation, check order history before retrying to avoid duplicate orders; retry after the gateway recovers."
+      ],
+      "ru": [
+        "Истекло время оформления заказа",
+        "Если подтверждения нет, сначала проверьте историю заказов, чтобы не создать дубль; повторите попытку после восстановления шлюза."
+      ],
+      "kk": [
+        "Тапсырысты рәсімдеу уақыты аяқталды",
+        "Растау болмаса, қос тапсырыс жасамау үшін алдымен тапсырыстар тарихын тексеріңіз; шлюз қалпына келген соң қайталаңыз."
+      ]
+    },
+    "queries": [
+      [
+        "en",
+        "The purchase page keeps loading and never confirms my order."
+      ],
+      [
+        "en",
+        "I got a gateway timeout while submitting checkout."
+      ],
+      [
+        "ru",
+        "Оформление зависает и заказ не подтверждается."
+      ],
+      [
+        "kk",
+        "Тапсырысты жіберген кезде бет ұзақ жүктеліп, жауап бермейді."
+      ],
+      [
+        "ru",
+        "Два платежа по счёту"
+      ]
+    ]
+  },
+  {
+    "id": "sso_redirect",
+    "category": "Authentication",
+    "documents": {
+      "en": [
+        "Single sign-on redirect loop",
+        "Allow cookies for the identity provider, verify the organization SSO callback URL, and remove outdated bookmarks before retrying."
+      ],
+      "ru": [
+        "Цикл перенаправления единого входа",
+        "Разрешите cookies провайдера идентификации, проверьте callback URL организации и удалите старые закладки."
+      ],
+      "kk": [
+        "Бірыңғай кіру қайта бағыттау циклі",
+        "Жеке куәлік провайдерінің cookie файлдарына рұқсат беріп, ұйымның callback URL мекенжайын тексеріңіз."
+      ]
+    },
+    "queries": [
+      [
+        "en",
+        "Signing in through company identity keeps sending me back to login."
+      ],
+      [
+        "en",
+        "The SSO page repeats redirects instead of opening my workspace."
+      ],
+      [
+        "ru",
+        "После корпоративного входа снова возвращаюсь на страницу авторизации."
+      ],
+      [
+        "kk",
+        "Компанияның бірыңғай кіруінен кейін жүйе қайтадан кіру бетіне жібереді."
+      ],
+      [
+        "en",
+        "I cannot reset my card payment details."
+      ]
+    ]
+  },
+  {
+    "id": "change_email",
+    "category": "Profile",
+    "documents": {
+      "en": [
+        "Change account email address",
+        "Open profile settings, enter the new address, then confirm the verification link sent to that address before it becomes the sign-in email."
+      ],
+      "ru": [
+        "Изменение адреса аккаунта",
+        "Откройте настройки профиля, укажите новый адрес и подтвердите ссылку проверки из письма."
+      ],
+      "kk": [
+        "Тіркелгі электрондық поштасын өзгерту",
+        "Профиль баптауларында жаңа мекенжайды енгізіп, оған келген тексеру сілтемесін растаңыз."
+      ]
+    },
+    "queries": [
+      [
+        "en",
+        "How do I replace the email I use to sign in?"
+      ],
+      [
+        "en",
+        "I want account notices sent to a different mailbox."
+      ],
+      [
+        "ru",
+        "Как поменять почтовый адрес профиля для авторизации?"
+      ],
+      [
+        "kk",
+        "Кіру үшін пайдаланатын электрондық пошта мекенжайын қалай ауыстырамын?"
+      ],
+      [
+        "ru",
+        "Почта и пароль не работают"
+      ]
+    ]
+  },
+  {
+    "id": "data_export",
+    "category": "Privacy",
+    "documents": {
+      "en": [
+        "Export account data",
+        "Request a personal data export from privacy settings; the download link is temporary and available only to the authenticated account owner."
+      ],
+      "ru": [
+        "Экспорт данных аккаунта",
+        "Запросите выгрузку персональных данных в настройках конфиденциальности; временная ссылка доступна владельцу аккаунта."
+      ],
+      "kk": [
+        "Тіркелгі деректерін экспорттау",
+        "Құпиялық баптауларынан жеке деректер мұрағатын сұраңыз; уақытша сілтеме тек тіркелгі иесіне қолжетімді."
+      ]
+    },
+    "queries": [
+      [
+        "en",
+        "Can I download a copy of the information stored in my profile?"
+      ],
+      [
+        "en",
+        "Where can an account owner request a personal information archive?"
+      ],
+      [
+        "ru",
+        "Как получить копию моих персональных данных из сервиса?"
+      ],
+      [
+        "kk",
+        "Қызметте сақталған жеке деректерімнің көшірмесін қалай жүктеймін?"
+      ],
+      [
+        "en",
+        "Help export an old support conversation."
+      ]
+    ]
+  }
+]

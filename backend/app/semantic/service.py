@@ -11,7 +11,7 @@ from app.identity.models import Membership, Organization, Role
 from app.identity.security import utcnow
 from app.identity.service import AuthContext, organization_context, transaction
 from app.semantic.embedding import content_digest, embedding_text, get_local_embedder
-from app.semantic.models import MODEL_VERSION, TicketEmbedding
+from app.semantic.models import LEGACY_MODEL_VERSION, MODEL_VERSION, TicketEmbedding
 from app.semantic.schemas import IndexingBatch, RelatedTicket, RelatedTickets
 from app.tenancy import set_tenant_context
 from app.tickets.models import Category, Message, Ticket, Visibility
@@ -129,10 +129,24 @@ def related(
             TicketEmbedding.is_current.is_(True),
         )
     )
+    # Keep M8 retrieval available while the versioned FastEmbed runtime backfills its new rows.
+    selected_model = MODEL_VERSION
+    if index is None or index.status != "ready" or index.embedding is None:
+        legacy = db.scalar(
+            select(TicketEmbedding).where(
+                TicketEmbedding.organization_id == org,
+                TicketEmbedding.ticket_id == ticket_id,
+                TicketEmbedding.model_version == LEGACY_MODEL_VERSION,
+                TicketEmbedding.is_current.is_(True),
+            )
+        )
+        if legacy is not None and legacy.status == "ready" and legacy.embedding is not None:
+            index = legacy
+            selected_model = LEGACY_MODEL_VERSION
     status = "missing" if index is None else index.status
     if index is None or index.status != "ready" or index.embedding is None:
         return RelatedTickets(
-            model_version=MODEL_VERSION,
+            model_version=selected_model,
             index_status=status,
             indexed_at=index.indexed_at if index else None,
             items=[],
@@ -168,7 +182,7 @@ def related(
         )
         .where(
             TicketEmbedding.organization_id == org,
-            TicketEmbedding.model_version == MODEL_VERSION,
+            TicketEmbedding.model_version == selected_model,
             TicketEmbedding.status == "ready",
             TicketEmbedding.is_current.is_(True),
             TicketEmbedding.ticket_id != ticket_id,
@@ -198,7 +212,7 @@ def related(
             )
         )
     return RelatedTickets(
-        model_version=MODEL_VERSION,
+        model_version=selected_model,
         index_status=status,
         indexed_at=index.indexed_at,
         items=results,

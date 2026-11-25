@@ -24,6 +24,7 @@ from app.identity.security import clear_cookies
 from app.incidents.api import router as incidents_router
 from app.integrations.api import inbound_router
 from app.integrations.api import router as integrations_router
+from app.knowledge.api import router as knowledge_router
 from app.logging import configure_logging
 from app.rate_limit import RateLimiter
 from app.semantic.api import router as semantic_router
@@ -143,6 +144,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(integrations_router)
     app.include_router(incidents_router)
     app.include_router(semantic_router)
+    app.include_router(knowledge_router)
     app.include_router(ai_router)
     app.include_router(inbound_router)
     return app
