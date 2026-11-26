@@ -373,3 +373,174 @@ The standard Compose configuration remains running with AI enabled for continued
 testing. The only remaining opt-in skip is intentional; it avoids requiring Ollama in
 standard backend CI. The real local-model paths were verified separately in the running
 Compose application.
+
+## Final release polish continuation — checkpoint before Docker recovery — 2026-11-26
+
+This is a follow-up polish pass over the completed M10 implementation, not a new milestone.
+At this checkpoint the changes below were present locally but still awaited PostgreSQL,
+Docker and browser verification. The verification record that supersedes the checkpoint is
+at the end of this document.
+
+### Implemented in the current working tree
+
+- Conversation summarization now uses a separate structured summary response and public
+  conversation only. It no longer requires a Knowledge Base citation or inherits reply
+  abstention behavior. A regression test asserts internal notes are excluded.
+- Agentic analysis now supports typed ticket, SLA, related-ticket, and Knowledge Base
+  assessments, with four explicit read-only tools and bounded distinct calls. Read-only tool
+  database transactions close before another local inference request begins.
+- AI quotas are reserved atomically across configurable global, organization, and
+  staff-account/organization scopes, after authentication, authorization, ticket-version,
+  idempotency, and active-run checks. Duplicate requests do not spend quota, failed
+  persistence refunds the reservation, and the API reports effective remaining quota. A
+  new unit test caught and corrected a retry-after TTL slot parsing error in denied quota
+  reservations.
+- The ticket UI disables new generation while a run is queued/running, only offers
+  cancellation while queued, displays structured agentic findings and the effective quota,
+  retries transient status polling errors, and uses a safe generic failure message.
+- The customer-only/no-staff-account route redirects from staff pages to the customer portal.
+- The System Status page reports API, database/migration, Redis, worker, embedding-model,
+  and optional local-generation status. The API receives the shared model cache read-only
+  so its model-file diagnostic checks the same persistent artifacts as the workers.
+- Knowledge Base articles now have an escaped Markdown preview/renderer. It renders no raw
+  HTML and permits only HTTP(S) links. The editor clarifies draft and published revision
+  numbers.
+
+### Verification performed for this continuation
+
+- Backend non-integration checks: **61 passed, 1 intentional database-only test skipped**;
+  147 integration tests were deselected by the explicit `-m "not integration"` selector.
+- A full `pytest` invocation collected 209 tests: **63 passed, 146 skipped**. Skip reasons
+  were the missing dedicated PostgreSQL `TEST_DATABASE_URL` for database-dependent tests
+  and the separately documented opt-in local-model test. This is not a complete backend
+  verification.
+- Ruff checks and format checks: passed for the complete backend `app` and `tests` trees.
+- Mypy: passed for all 68 backend application modules.
+- `pip check`: passed.
+- Frontend TypeScript check and production build: passed.
+- Python compilation: passed.
+- PostgreSQL integration, migrations, Compose, live model, and Playwright checks have not
+  run in this continuation. Port 15432 did not accept a connection. The launched Docker
+  Desktop UI is responsive, but `docker info` still reports that the configured Linux engine
+  named pipe is missing, and `wsl -l -v` reports both Ubuntu and `docker-desktop` stopped.
+  `com.docker.service` is not installed in this per-user Docker Desktop setup. No Docker
+  reset, volume change, database reset, or model/cache deletion was attempted.
+
+### Exact next steps
+
+1. Start the Linux engine from the open Docker Desktop window and wait until `docker info`
+   reports a Linux server. If Docker Desktop shows a WSL startup failure, resolve that
+   through its ordinary WSL/backend troubleshooting path; do not factory-reset Docker or
+   remove distributions/volumes.
+2. Verify the existing `postgres_data` volume is present, then start the normal stack with
+   `docker compose up -d` (never `down -v`). Confirm API, PostgreSQL, Redis, both workers,
+   frontend, and Mailpit are healthy. Keep host PostgreSQL port `15432`.
+3. Derive a fresh dedicated database name ending in `_test` from the existing migration URL,
+   create that database without modifying `supportflow`, and set `TEST_DATABASE_URL` only for
+   the test process.
+4. Run full PostgreSQL backend tests, including the new summary, active-run, rate quota,
+   tool-contract, and existing forced-RLS regression cases; check migrations and fresh
+   install; then run full desktop/mobile Playwright.
+5. With local Ollama/model available, verify reply, summary, and structured tool-assisted
+   runs, polling terminal behavior, new quota feedback, staff/customer route handling, and
+   System Status diagnostics. Do not report model quality as a verified metric from these
+   functional checks.
+6. Review the full diff and secrets, then commit locally only after required verification
+   passes. Do not push or publish without explicit user permission.
+
+## Final completion verification — 2026-11-26
+
+Docker Desktop's Linux engine was restored. Docker CLI commands report Docker **29.9.3**;
+Compose builds and starts successfully. `wsl -l -v` reports the `docker-desktop` WSL2
+distribution Running (the separate Ubuntu distribution is stopped). PostgreSQL **16.12**
+was healthy on the existing `127.0.0.1:15432` mapping; the normal stack migration completed
+successfully.
+
+### Database and regression verification
+
+- Created/used two dedicated disposable databases, `supportflow_m10final_20261126_test`
+  for Compose/browser/live-model exercises and `supportflow_m10verify_20261126_test` for
+  the final clean regression/performance run. Both used existing configured database
+  credentials and are distinct from `supportflow`. Test fixtures used random schemas and
+  dropped only the schemas created by each test.
+- Final full backend suite on `supportflow_m10verify_20261126_test`: **208 passed, 1
+  intentional opt-in local-model skip**, zero PostgreSQL integration skips. The opt-in
+  test was run independently against the first `_test` database and passed (**1 passed in
+  118.23 s**) using the real installed Ollama model.
+- After CI action versions were refreshed, the complete backend suite was rerun on a newly
+  created disposable `supportflow_m10release_20261126_test` database: **208 passed, 1
+  intentional opt-in local-model skip, zero unexpected skips** (202.90 s). The test
+  fixture created and removed only its own random schemas.
+- PostgreSQL migration/integration tests passed as part of the full suite, including fresh
+  schema migration, M8-to-M9 upgrade behavior, forced-RLS access under the restricted
+  runtime role, tenant isolation, and database constraints. The public test database was
+  separately migrated to Alembic head for Compose-based verification.
+- The first full-suite run exposed one stale test assertion checking only the final tool
+  message despite the workflow calling all four read-only tools. The assertion now checks
+  the complete tool sequence. The full suite passed after that correction.
+- Ruff check and format checks passed; Mypy and dependency consistency passed; Python
+  compilation passed. Frontend TypeScript and production build passed.
+- Desktop and mobile Playwright: **20/20 passed**. Two initial attempts exposed stale
+  expectations for the safe generic Copilot failure text and the expanded System Status
+  component list; those assertions were updated to verify the intended user-facing behavior
+  and required core services. A subsequent attempt reused Redis limiter counters and
+  correctly received HTTP 429; the successful run used a fresh Redis logical DB, without
+  deleting any Redis keys or weakening the configured limits.
+
+### Compose and live-model verification
+
+- Built and started the Compose stack. PostgreSQL, Redis, API, ticket worker, AI worker,
+  frontend and Mailpit were healthy; migration exited successfully. Liveness and readiness
+  returned `ok` and `ready`. The component status endpoint reported core dependencies,
+  local embedding models, workers, and local Ollama available.
+- Reproduced the CI database-outage behavior against the running Compose stack: while the
+  PostgreSQL container was stopped, liveness remained HTTP 200 and readiness returned HTTP
+  503; after starting the same service, readiness returned HTTP 200. The named volume was
+  retained, and all services were healthy again afterward.
+- For browser and live API checks, the API and workers were temporarily configured to use
+  only the disposable `_test` database. Container PostgreSQL used `db:5432`; the original
+  host-side `127.0.0.1:15432` URL failed inside the first temporary override and was
+  corrected before tests proceeded. The standard Compose configuration was restored after
+  verification, without removing volumes. The `postgres_data` and model-cache volumes,
+  `.env`, and existing development database were retained.
+- The installed local model was `qwen3.5:4b-q4_K_M` (Ollama reported a 3.3 GB artifact,
+  digest prefix `d8b0f5e9760c`). It loaded with a 4096-token context and 100% GPU placement.
+  The host has an Intel Core i5-12500H (12 cores/16 threads) and RTX 3060 Laptop GPU with
+  6 GiB dedicated VRAM. A read-only snapshot after live inference showed about 2.2 GiB GPU
+  memory free. Docker Desktop reported 16 CPUs and a 7.6 GiB Linux VM limit; one container
+  memory snapshot totaled about 1.7 GiB. The C: drive had about 69 GiB free. These are
+  point-in-time readings, not capacity benchmarks. Host RAM values remain those captured
+  in the prior hardware observation in `docs/local-ai.md`.
+- Through the real Docker API, outbox, Celery AI worker and local Ollama model, a synthetic
+  published article indexed successfully. Grounded reply completed in **23,512 ms** with
+  one validated article citation; public-conversation summary completed in **3,913 ms**;
+  bounded read-only tool analysis completed in **90,772 ms**, using `get_sla_status`.
+  These are one-off functional observations, not model-quality or production performance
+  claims. No confidential or customer data was used.
+- A live API quota check with a temporary one-request test limit returned **202** for the
+  first request and **429** plus a 3600-second retry interval for the next request from the
+  same user/organization. The stack was restored to the normal configuration afterward.
+  Unit/integration tests cover safe provider failure states, job recovery, quota reservation,
+  and the browser verifies that polling stops on both terminal success and failure.
+- Existing AI answer-grounding and abstention evaluation targets remain unmet. No threshold
+  was changed to conceal this result; generated replies remain optional, source-checked and
+  human-reviewed. See `docs/ai-evaluation.md`.
+- The performance harness was rerun with synthetic data on the fresh
+  `supportflow_m10verify_20261126_test` database; current p50/p95 values, resource snapshots
+  and scope limitations are recorded in `docs/performance-report.md`. Alembic upgrade and
+  schema consistency checks then passed on that database. No concurrent-load or
+  production-capacity claim is made.
+
+### Final state and remaining release boundary
+
+- The normal Compose stack is running with AI enabled and Ollama available. PostgreSQL stays
+  mapped to host port `15432`; no volume or user data was reset or deleted.
+- Current verification changes remain local and uncommitted pending final diff review. The
+  latest verified application commit remains `f7871016e8250d0e034d44ed61b53baf19eccc26`.
+  GitHub Actions were updated from Node 20-era action majors to current Node 24-compatible
+  majors (`checkout@v7`, `setup-python@v7`, `setup-node@v7`). Local verification passed,
+  but the current working changes had not yet been pushed at the time of this verification
+  record and therefore had no new remote Actions result. The prior pushed commit's CI
+  passed. The repository's standing Git instructions govern the verified commit and push.
+- No further M10 implementation work is pending. M10 remains experimental in answer quality;
+  no production-readiness claim is made. Do not begin another milestone without approval.

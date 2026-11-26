@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, type Organization } from "../api";
+import { api, ApiError, type Organization } from "../api";
 import { ErrorText, message } from "../auth";
 
 type Citation = {
@@ -21,11 +21,27 @@ type Run = {
   insufficient_evidence: boolean;
   citations: Citation[];
   tools_used: string[];
+  agentic_analysis: {
+    ticket_assessment: string;
+    sla_assessment: string;
+    related_ticket_assessment: string;
+    potential_causes: string[];
+    missing_information: string[];
+    recommended_actions: string[];
+  } | null;
   warnings: string[];
   error_code: string | null;
   latency_ms: number | null;
 };
-type Status = { enabled: boolean; state: string; model: string; digest: string | null };
+type Status = {
+  enabled: boolean;
+  state: string;
+  model: string;
+  digest: string | null;
+  request_limit: number;
+  requests_remaining: number | null;
+  limit_resets_in_seconds: number | null;
+};
 
 export function CopilotPanel({
   org,
@@ -42,6 +58,7 @@ export function CopilotPanel({
   const [run, setRun] = useState<Run>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [rateLimitWait, setRateLimitWait] = useState<number | null>(null);
   const root = `/organizations/${org.id}/ai`;
 
   useEffect(() => {
@@ -57,21 +74,35 @@ export function CopilotPanel({
   useEffect(() => {
     if (!run || !["queued", "running"].includes(run.status)) return;
     let active = true;
-    const timer = window.setTimeout(() => {
-      void api<Run>(`${root}/runs/${run.id}`)
-        .then((value) => active && setRun(value))
-        .catch((err: unknown) => active && setError(message(err)));
-    }, 2000);
+    let timer = 0;
+    const poll = () => {
+      timer = window.setTimeout(() => {
+        void api<Run>(`${root}/runs/${run.id}`)
+          .then((value) => {
+            if (!active) return;
+            setError("");
+            setRun(value);
+            if (["queued", "running"].includes(value.status)) poll();
+          })
+          .catch((err: unknown) => {
+            if (!active) return;
+            setError(`Could not refresh generation status. ${message(err)}`);
+            poll();
+          });
+      }, 2000);
+    };
+    poll();
     return () => {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [root, run]);
+  }, [root, run?.id, run?.status]);
 
   async function generate(action: Run["action"]) {
     setBusy(true);
     setError("");
     setRun(undefined);
+    setRateLimitWait(null);
     try {
       const value = await api<Run>(
         `${root}/tickets/${ticketId}/runs`,
@@ -81,7 +112,13 @@ export function CopilotPanel({
       );
       setRun(value);
     } catch (err) {
-      setError(message(err));
+      if (err instanceof ApiError && err.status === 429) {
+        setRateLimitWait(err.details?.retry_after_seconds ?? null);
+        setError("You've reached the local assistance limit for this account and workspace.");
+        void api<Status>(`${root}/status`).then(setStatus).catch(() => undefined);
+      } else {
+        setError(message(err));
+      }
     } finally {
       setBusy(false);
     }
@@ -98,6 +135,7 @@ export function CopilotPanel({
   }
 
   const unavailable = !status?.enabled || status.state !== "available";
+  const runActive = Boolean(run && ["queued", "running"].includes(run.status));
   return (
     <section className="panel copilot-panel" aria-label="AI Copilot">
       <div className="section-heading copilot-heading">
@@ -114,14 +152,26 @@ export function CopilotPanel({
         guidance. Nothing is sent to the customer automatically.
       </p>
       <ErrorText text={error} />
+      {rateLimitWait !== null && (
+        <p className="muted" role="status">
+          Try again in about {Math.ceil(rateLimitWait / 60)} minutes. Quota is tracked per staff account and organization.
+        </p>
+      )}
       {!status && !error && <p role="status" aria-busy="true">Checking local model availability…</p>}
       {status && (
-        <p className="copilot-model">Local model: {status.model}</p>
+        <p className="copilot-model">
+          Local model: {status.model}. {status.requests_remaining === null
+            ? "Usage quota is temporarily unavailable."
+            : `${status.requests_remaining} of ${status.request_limit} requests remain this hour.`}
+          {status.requests_remaining === 0 && status.limit_resets_in_seconds !== null
+            ? ` Reset in about ${Math.ceil(status.limit_resets_in_seconds / 60)} minutes.`
+            : ""}
+        </p>
       )}
       <div className="copilot-actions">
         <button
           type="button"
-          disabled={busy || unavailable || ticketVersion < 1}
+          disabled={busy || runActive || unavailable || ticketVersion < 1}
           onClick={() => void generate("reply")}
         >
           Generate grounded reply
@@ -129,7 +179,7 @@ export function CopilotPanel({
         <button
           className="secondary"
           type="button"
-          disabled={busy || unavailable || ticketVersion < 1}
+          disabled={busy || runActive || unavailable || ticketVersion < 1}
           onClick={() => void generate("summary")}
         >
           Summarize conversation
@@ -137,7 +187,7 @@ export function CopilotPanel({
         <button
           className="secondary"
           type="button"
-          disabled={busy || unavailable || ticketVersion < 1}
+          disabled={busy || runActive || unavailable || ticketVersion < 1}
           onClick={() => void generate("agentic")}
         >
           Analyze with read-only tools
@@ -149,13 +199,13 @@ export function CopilotPanel({
         </p>
       )}
       {busy && <p role="status" aria-busy="true">Starting a private generation job…</p>}
-      {run && ["queued", "running"].includes(run.status) && (
+      {run && runActive && (
         <div className="copilot-job" role="status" aria-live="polite">
           <span>{run.status === "queued" ? "Waiting for the local model…" : "Generating locally…"}</span>
-          <button className="text-button" type="button" onClick={() => void cancel()}>Cancel</button>
+          {run.status === "queued" && <button className="text-button" type="button" onClick={() => void cancel()}>Cancel queued job</button>}
         </div>
       )}
-      {run?.status === "failed" && <p className="error" role="alert">Generation failed ({run.error_code ?? "unknown"}). You can retry.</p>}
+      {run?.status === "failed" && <p className="error" role="alert">{failureMessage(run.error_code)}</p>}
       {run?.status === "stale" && <p className="error" role="alert">The ticket or access changed while this was running. Refresh the ticket before using another draft.</p>}
       {run?.status === "cancelled" && <p className="muted" role="status">Generation cancelled.</p>}
       {run?.status === "completed" && (
@@ -189,10 +239,39 @@ export function CopilotPanel({
           {run.tools_used.length > 0 && (
             <p className="muted">Read-only tools used: {run.tools_used.join(", ")}</p>
           )}
+          {run.agentic_analysis && <AgenticAnalysis analysis={run.agentic_analysis} />}
           {run.warnings.map((warning) => <p className="muted" key={warning}>{warning}</p>)}
           {run.latency_ms !== null && <small className="muted">Local generation · {run.latency_ms} ms</small>}
         </div>
       )}
     </section>
   );
+}
+
+function List({ label, items }: { label: string; items: string[] }) {
+  return (
+    <div>
+      <strong>{label}</strong>
+      <ul>{items.map((item, index) => <li key={`${index}:${item}`}>{item}</li>)}</ul>
+    </div>
+  );
+}
+
+function AgenticAnalysis({ analysis }: { analysis: NonNullable<Run["agentic_analysis"]> }) {
+  return (
+    <div className="agentic-analysis">
+      {analysis.ticket_assessment && <p><strong>Ticket:</strong> {analysis.ticket_assessment}</p>}
+      {analysis.sla_assessment && <p><strong>SLA:</strong> {analysis.sla_assessment}</p>}
+      {analysis.related_ticket_assessment && <p><strong>Related tickets:</strong> {analysis.related_ticket_assessment}</p>}
+      {analysis.potential_causes.length > 0 && <List label="Potential causes (unverified)" items={analysis.potential_causes} />}
+      {analysis.missing_information.length > 0 && <List label="Missing information" items={analysis.missing_information} />}
+      {analysis.recommended_actions.length > 0 && <List label="Recommended next actions" items={analysis.recommended_actions} />}
+    </div>
+  );
+}
+
+function failureMessage(code: string | null) {
+  if (code === "provider_unavailable") return "The local model is unavailable. Check System status, then retry.";
+  if (code === "worker_interrupted") return "The generation worker restarted before completion. You can safely retry.";
+  return "Generation did not complete. Check local model and worker status, then retry.";
 }

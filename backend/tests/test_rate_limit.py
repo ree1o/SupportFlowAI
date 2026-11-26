@@ -2,7 +2,7 @@ import pytest
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 from app.errors import AppError
-from app.rate_limit import _INCREMENT, RateLimiter
+from app.rate_limit import _INCREMENT, _RELEASE_MANY, _RESERVE_MANY, RateLimiter
 
 
 class RedisStub:
@@ -12,6 +12,21 @@ class RedisStub:
 
     def eval(self, script, key_count, key, ttl):
         self.args = (script, key_count, key, ttl)
+        if isinstance(self.result, Exception):
+            raise self.result
+        return self.result
+
+    def close(self):
+        return None
+
+
+class MultiRedisStub:
+    def __init__(self, result):
+        self.result = result
+        self.args = None
+
+    def eval(self, *args):
+        self.args = args
         if isinstance(self.result, Exception):
             raise self.result
         return self.result
@@ -42,6 +57,43 @@ def test_rate_limit_uses_atomic_counter_and_hashed_identity(monkeypatch):
 def test_rate_limit_returns_ceil_retry_after(monkeypatch):
     limiter, _stub = limiter_with_result(monkeypatch, [3, 1001])
     assert limiter.check(bucket="login", identity="caller", limit=2, window_seconds=60) == 2
+    limiter.close()
+
+
+def test_reserve_many_charges_all_scopes_atomically_and_hashes_identities(monkeypatch):
+    from app.rate_limit import RateLimitDecision
+
+    limiter = RateLimiter("redis://localhost/0", "test-secret", disabled=False)
+    stub = MultiRedisStub([1, 0, 8, 3_600_000])
+    monkeypatch.setattr(limiter, "_redis", stub)
+    limits = [
+        ("global", "all", "service", 120, 3600),
+        ("organization", "org-secret", "organization", 30, 3600),
+        ("staff", "user-secret:org-secret", "your account", 30, 3600),
+    ]
+    decision = limiter.reserve_many(limits)
+    assert decision == RateLimitDecision(True, 8, 3600)
+    assert stub.args[0] == _RESERVE_MANY
+    assert stub.args[1] == 3
+    assert "org-secret" not in " ".join(stub.args[2:5])
+    limiter.close()
+
+
+def test_reserve_many_returns_limited_scope_and_releases_reservation(monkeypatch):
+    limiter = RateLimiter("redis://localhost/0", "test-secret", disabled=False)
+    stub = MultiRedisStub([0, 2, 45001, 0])
+    monkeypatch.setattr(limiter, "_redis", stub)
+    limits = [
+        ("global", "all", "service", 120, 3600),
+        ("organization", "org", "organization", 30, 3600),
+    ]
+    denied = limiter.reserve_many(limits)
+    assert denied.allowed is False
+    assert denied.limited_scope == "organization"
+    assert denied.retry_after_seconds == 46
+    limiter.release_many(limits)
+    assert stub.args[0] == _RELEASE_MANY
+    assert stub.args[1] == 2
     limiter.close()
 
 

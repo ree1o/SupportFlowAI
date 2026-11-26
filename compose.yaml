@@ -29,6 +29,9 @@ x-backend: &backend
     SUPPORTFLOW_AI_TEMPERATURE: ${SUPPORTFLOW_AI_TEMPERATURE:-0.15}
     SUPPORTFLOW_AI_KEEP_ALIVE: ${SUPPORTFLOW_AI_KEEP_ALIVE:-1m}
     SUPPORTFLOW_AI_RESULT_RETENTION_DAYS: ${SUPPORTFLOW_AI_RESULT_RETENTION_DAYS:-30}
+    SUPPORTFLOW_AI_GLOBAL_HOURLY_LIMIT: ${SUPPORTFLOW_AI_GLOBAL_HOURLY_LIMIT:-120}
+    SUPPORTFLOW_AI_ORGANIZATION_HOURLY_LIMIT: ${SUPPORTFLOW_AI_ORGANIZATION_HOURLY_LIMIT:-30}
+    SUPPORTFLOW_AI_USER_ORGANIZATION_HOURLY_LIMIT: ${SUPPORTFLOW_AI_USER_ORGANIZATION_HOURLY_LIMIT:-30}
     SUPPORTFLOW_KNOWLEDGE_INDEX_MAX_ATTEMPTS: ${SUPPORTFLOW_KNOWLEDGE_INDEX_MAX_ATTEMPTS:-5}
     SUPPORTFLOW_EMAIL_FROM: ${SUPPORTFLOW_EMAIL_FROM:-support@supportflow.local}
     SUPPORTFLOW_PUBLIC_APP_URL: ${SUPPORTFLOW_PUBLIC_APP_URL:-http://localhost:5173}
@@ -80,6 +83,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+    volumes:
+      - semantic_model_cache:/var/cache/supportflow/models:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/ready', timeout=8)"]
       interval: 10s

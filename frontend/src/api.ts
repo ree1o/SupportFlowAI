@@ -26,7 +26,12 @@ export class ApiError extends Error {
     public status: number,
     public code: string,
     message: string,
-    public details?: { current_version?: number },
+    public details?: {
+      current_version?: number;
+      retry_after_seconds?: number;
+      requests_remaining?: number;
+      scope?: string;
+    },
   ) {
     super(message);
   }

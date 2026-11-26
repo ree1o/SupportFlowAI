@@ -1,109 +1,101 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import "./styles.css";
 
-type CheckState = "checking" | "available" | "unavailable";
-type Checks = { api: CheckState; database: CheckState };
+type Component = { status: string; detail: string };
+type Diagnostics = {
+  overall: "operational" | "degraded";
+  api: Component;
+  database: Component;
+  redis: Component;
+  ticket_worker: Component;
+  ai_worker: Component;
+  ticket_embedding_model: Component;
+  knowledge_embedding_model: Component;
+  local_generation: Component;
+};
 
-async function check(
-  path: string,
-  expected: string,
-  signal: AbortSignal,
-): Promise<CheckState> {
-  try {
-    const response = await fetch(path, { signal, cache: "no-store" });
-    if (!response.ok) return "unavailable";
-    const body: unknown = await response.json();
-    return typeof body === "object" &&
-      body !== null &&
-      "status" in body &&
-      body.status === expected
-      ? "available"
-      : "unavailable";
-  } catch {
-    return "unavailable";
-  }
-}
+const labels: Record<keyof Omit<Diagnostics, "overall">, string> = {
+  api: "Application API",
+  database: "PostgreSQL and migrations",
+  redis: "Queue and rate limit store",
+  ticket_worker: "Ticket and notification worker",
+  ai_worker: "AI and knowledge indexing worker",
+  ticket_embedding_model: "Ticket retrieval model files",
+  knowledge_embedding_model: "Knowledge indexing model files",
+  local_generation: "Optional local generation",
+};
 
 export function Health() {
-  const [checks, setChecks] = useState<Checks>({
-    api: "checking",
-    database: "checking",
-  });
+  const [checks, setChecks] = useState<Diagnostics | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    let active = true;
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 10_000);
-    setChecks({ api: "checking", database: "checking" });
-    void Promise.all([
-      check("/api/health/live", "ok", controller.signal),
-      check("/api/health/ready", "ready", controller.signal),
-    ]).then(([api, database]) => {
-      if (active) setChecks({ api, database });
-      window.clearTimeout(timeout);
-    });
+    const timeout = window.setTimeout(() => controller.abort(), 5000);
+    setLoading(true);
+    setError("");
+    void fetch("/api/health/components", { signal: controller.signal, cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("System diagnostics are temporarily unavailable.");
+        return (await response.json()) as Diagnostics;
+      })
+      .then(setChecks)
+      .catch(() => setError("Unable to load diagnostics. Check the API and try again."))
+      .finally(() => {
+        window.clearTimeout(timeout);
+        setLoading(false);
+      });
     return () => {
-      active = false;
       controller.abort();
       window.clearTimeout(timeout);
     };
   }, [attempt]);
 
-  const loading = checks.api === "checking" || checks.database === "checking";
   return (
-    <main>
-      <header>
-        <span className="brand-mark" aria-hidden="true">
-          S
-        </span>{" "}
-        SupportFlow AI
+    <main className="health-page">
+      <header className="health-header">
+        <Link className="wordmark" to="/login">
+          <span className="brand-mark" aria-hidden="true">S</span>
+          SupportFlow AI
+        </Link>
+        <Link to="/login">Sign in</Link>
       </header>
-      <section className="card">
-        <p className="eyebrow">Release 0.1 · Milestone M1</p>
-        <h1>
-          A reliable foundation
-          <br />
-          for customer support.
-        </h1>
-        <p className="intro">
-          The application baseline is ready to verify. Helpdesk workflows arrive
-          in the next milestones.
-        </p>
-        <div className="checks" aria-live="polite" aria-busy={loading}>
-          <Status label="API liveness" state={checks.api} />
-          <Status label="Database & migrations" state={checks.database} />
+      <section className="health-overview panel">
+        <p className="eyebrow">Service diagnostics</p>
+        <h1>System status</h1>
+        <p className="muted">Core helpdesk services are reported separately from optional AI features.</p>
+        <div className="health-summary" aria-live="polite" aria-busy={loading}>
+          <span className={`health-indicator ${checks?.overall ?? "checking"}`} aria-hidden="true" />
+          <strong>{loading ? "Checking services…" : checks?.overall === "operational" ? "Core services operational" : checks ? "Some core services need attention" : "Checking services"}</strong>
+          {checks?.local_generation.status === "disabled" && <span className="muted">Local generation is disabled</span>}
         </div>
-        {checks.database === "unavailable" && (
-          <p className="hint">
-            Readiness is unavailable. Check PostgreSQL, migrations, and API
-            logs.
-          </p>
-        )}
-        <div className="actions">
-          <button
-            disabled={loading}
-            onClick={() => setAttempt((value) => value + 1)}
-          >
+        {error && <p className="error" role="alert">{error}</p>}
+        <div className="health-grid" aria-live="polite">
+          {(Object.keys(labels) as (keyof typeof labels)[]).map((key) => {
+            const component = checks?.[key];
+            const status = component?.status ?? "checking";
+            return (
+              <article className="health-component" key={key}>
+                <div className="health-component-heading">
+                  <strong>{labels[key]}</strong>
+                  <span className={`status ${status}`}>{status.replaceAll("_", " ")}</span>
+                </div>
+                <p className="muted">{component?.detail ?? (loading ? "Checking…" : "No status available")}</p>
+              </article>
+            );
+          })}
+        </div>
+        <div className="health-actions">
+          <button className="secondary" type="button" disabled={loading} onClick={() => setAttempt((value) => value + 1)}>
             {loading ? "Checking…" : "Check again"}
           </button>
-          <a href="/api/docs">
-            Explore API documentation <span aria-hidden="true">↗</span>
-          </a>
+          <Link to="/api/docs">API documentation</Link>
         </div>
       </section>
-      <footer>
-        <a href="/app">Return to your workspace</a> · System diagnostics
-      </footer>
+      <footer className="muted">AI availability does not determine whether tickets and customer conversations can be managed.</footer>
     </main>
-  );
-}
-
-function Status({ label, state }: { label: string; state: CheckState }) {
-  return (
-    <div className="status-row">
-      <span>{label}</span>
-      <span className={`status ${state}`}>{state}</span>
-    </div>
   );
 }

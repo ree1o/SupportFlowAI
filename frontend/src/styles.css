@@ -1023,6 +1023,32 @@ textarea {
 .copilot-citations ul { display: grid; gap: 10px; padding-left: 20px; }
 .copilot-citations li p { margin: 5px 0 0; color: #aebbd0; font-size: .9rem; }
 .copilot-abstention { margin: 0; padding: 10px 12px; border: 1px solid #75603a; border-radius: 8px; color: #ffe1ad; background: rgba(91, 67, 29, .3); }
+.agentic-analysis { display: grid; gap: 8px; padding: 14px; border: 1px solid rgba(129, 152, 173, .22); border-radius: 9px; background: rgba(9, 17, 28, .45); }
+.agentic-analysis p { margin: 0; }
+.agentic-analysis ul { margin: 6px 0 0; padding-left: 22px; }
+.knowledge-preview { padding: 16px; border: 1px solid #334257; border-radius: 10px; background: #121d2d; }
+.knowledge-preview h3 { margin-top: 0; }
+.markdown-content { color: #dce7f2; overflow-wrap: anywhere; }
+.markdown-content h1, .markdown-content h2, .markdown-content h3 { margin: 1em 0 .4em; }
+.markdown-content p { margin: .45em 0; white-space: pre-wrap; }
+.markdown-content blockquote { margin: 10px 0; padding: 3px 12px; border-left: 3px solid #5c88aa; color: #b8c8d8; }
+.markdown-content code { padding: 2px 5px; border-radius: 4px; background: #0b1523; font-family: ui-monospace, monospace; }
+.markdown-content a { color: #82c8ff; text-decoration: underline; text-underline-offset: 2px; }
+.markdown-list-item { padding-left: 12px; }
+.health-page { width: min(100% - 32px, 1040px); margin: 30px auto; }
+.health-header, .health-actions, .health-component-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.health-header { margin-bottom: 24px; }
+.health-overview { display: grid; gap: 18px; }
+.health-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.health-indicator { width: 10px; height: 10px; border-radius: 50%; background: #8a98a8; }
+.health-indicator.operational, .status.available { background: #54c29b; color: #b9ffe5; }
+.health-indicator.degraded, .status.unavailable, .status.not_installed { background: #e6aa55; color: #ffe6bb; }
+.status.disabled { background: #596a7c; color: #e2eaf2; }
+.health-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.health-component { padding: 14px; border: 1px solid #334257; border-radius: 10px; background: #121d2d; }
+.health-component p { margin: 10px 0 0; font-size: .9rem; }
+.status { border-radius: 99px; padding: 3px 8px; font-size: .72rem; text-transform: capitalize; }
+.health-page footer { margin: 16px 4px; }
 @media (max-width: 620px) { .copilot-actions { flex-direction: column; align-items: stretch; } }
 @media (max-width: 1200px) {
   .ticket-layout {

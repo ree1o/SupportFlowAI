@@ -36,6 +36,9 @@ def test_ai_status_is_optional_and_organization_scoped(postgres):
             "state": "disabled",
             "model": "qwen3.5:4b-q4_K_M",
             "digest": None,
+            "request_limit": 30,
+            "requests_remaining": 30,
+            "limit_resets_in_seconds": 0,
         }
 
     with TestClient(create_app(settings), base_url=ORIGIN) as outsider:

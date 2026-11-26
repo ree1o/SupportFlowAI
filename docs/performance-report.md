@@ -71,3 +71,43 @@ for the M9 synthetic workload. Those remain measurement gaps; do not derive perf
 claims from the table above. PostgreSQL index choice and exact vector-search behavior
 are described in [M8 semantic retrieval](semantic-retrieval.md). No speculative
 optimization was made based on this small sample.
+
+## M10 continuation repeat run — 2026-11-26
+
+The same fixed harness was rerun against the dedicated database
+`supportflow_m10verify_20261126_test`, with 100- and 500-ticket synthetic datasets.
+Environment: Windows 11 build 26300, Python 3.12.4, 16 logical CPUs, PostgreSQL 16.12
+and pgvector 0.8.1 in Docker Desktop. The machine CPU is an Intel Core i5-12500H. The
+measurements are sequential `TestClient` requests against synthetic data; they do not
+represent concurrent throughput or user-facing network latency. All measured HTTP samples
+returned success (zero errors).
+
+| Operation | Dataset | Samples | p50 ms | p95 ms | Notes |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Ticket list | 100 | 20 | 20.05 | 29.35 | Sequential |
+| Ticket list | 500 | 20 | 23.52 | 28.75 | Sequential |
+| Operations report | 100 | 20 | 22.71 | 31.03 | Sequential |
+| Operations report | 500 | 20 | 22.53 | 23.83 | Sequential |
+| Semantic related-ticket query | 100 | 20 | 20.27 | 32.19 | Includes local DB route |
+| Semantic related-ticket query | 500 | 20 | 55.47 | 57.97 | Exact eligible-row ranking |
+| Ticket creation | n/a | 10 | 36.59 | 57.66 | Synthetic organization |
+| Staff public reply | n/a | 10 | 23.86 | 26.11 | Synthetic ticket |
+| Customer public reply | n/a | 10 | 26.06 | 31.41 | Synthetic customer |
+| Signed webhook ingestion | n/a | 10 | 36.87 | 54.09 | Synthetic integration source |
+| Radar query + detector | 100 tickets | 1 | — | — | 10.31 ms total |
+| Radar query + detector | 500 tickets | 1 | — | — | 44.91 ms total |
+
+This repeat run is consistent with the prior observation that exact vector ranking costs
+more as the tenant-eligible candidate set grows. It does not justify changing retrieval
+or detector behavior; bounded candidate limits remain in place. The harness does not report
+database CPU or storage, use simultaneous clients, or measure embedding indexing throughput.
+
+During normal Compose operation a one-shot `docker stats` snapshot showed about 1.7 GiB
+aggregate memory across the seven running application containers, with the regular worker
+the largest container at about 0.9 GiB. Docker Desktop exposed a 7.6 GiB Linux VM memory
+limit. Ollama reported the 4B Q4 model at 3.1 GiB resident with 100% GPU placement, 4096
+context tokens, and approximately 2.2 GiB free on the 6 GiB RTX 3060 Laptop GPU after the
+live checks. These are one-time resource observations, not peak or capacity measurements.
+The AI worker remains isolated at concurrency one, and the existing asynchronous/outbox
+design keeps local inference off ordinary request paths. No speculative optimization or
+increase in background concurrency was made.

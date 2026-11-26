@@ -168,7 +168,7 @@ class ToolCallingProvider:
         raise AssertionError("agentic requests must use tool-capable orchestration")
 
     def generate_with_tools(self, messages, tools, max_tokens):
-        assert len(tools) == 2
+        assert len(tools) == 4
         self.messages = messages
         return next(self.calls)
 
@@ -211,6 +211,55 @@ def test_run_creation_is_idempotent_and_grounded_reply_excludes_internal_notes(
     assert "secret" not in completed.text.lower()
 
 
+def test_conversation_summary_does_not_require_knowledge_citations(ai_desk, monkeypatch):
+    from app.ai import service as ai_service
+    from app.ai.schemas import ConversationSummary
+
+    desk = ai_desk
+    note = write(
+        desk["clients"]["owner"],
+        "POST",
+        f"{desk['root']}/tickets/{desk['ticket']['id']}/notes",
+        {"expected_version": 1, "body": "internal note must not enter the summary"},
+    )
+    assert note.status_code == 201
+    monkeypatch.setattr(
+        ai_service,
+        "get_knowledge_embedder",
+        lambda _cache: (_ for _ in ()).throw(AssertionError("summary must not embed")),
+    )
+    response = write(
+        desk["clients"]["owner"],
+        "POST",
+        f"{desk['root']}/ai/tickets/{desk['ticket']['id']}/runs",
+        {"action": "summary", "expected_ticket_version": 2},
+        headers={"Idempotency-Key": "ai-summary-contract-01"},
+    )
+    assert response.status_code == 202, response.text
+
+    class SummaryProvider(CapturingProvider):
+        def generate_structured(self, prompt, response_model, max_tokens):
+            del max_tokens
+            self.prompt = prompt
+            assert response_model is ConversationSummary
+            assert "staff investigation secret" not in prompt
+            assert "internal note must not enter the summary" not in prompt
+            return ConversationSummary(summary="The customer cannot use the expired reset link.")
+
+    provider = SummaryProvider()
+    with desk["db"].session() as db:
+        assert (
+            process_run(db, desk["org"], UUID(response.json()["id"]), desk["settings"], provider)
+            == "completed"
+        )
+    result = desk["clients"]["owner"].get(f"/api{desk['root']}/ai/runs/{response.json()['id']}")
+    assert result.status_code == 200
+    assert result.json()["status"] == "completed"
+    assert result.json()["result"] == "The customer cannot use the expired reset link."
+    assert result.json()["insufficient_evidence"] is False
+    assert result.json()["citations"] == []
+
+
 def test_ai_run_requires_ticket_access_version_and_tenant(ai_desk):
     desk = ai_desk
     missing_key = write(
@@ -236,6 +285,22 @@ def test_ai_run_requires_ticket_access_version_and_tenant(ai_desk):
         f"/ai/runs/{run.json()['id']}"
     )
     assert wrong_org.status_code == 404
+
+
+def test_only_one_active_generation_per_ticket(ai_desk):
+    desk = ai_desk
+    first = start_reply(desk, "ai-active-ticket-run-01")
+    assert first.status_code == 202
+    second = write(
+        desk["clients"]["owner"],
+        "POST",
+        f"{desk['root']}/ai/tickets/{desk['ticket']['id']}/runs",
+        {"action": "summary", "expected_ticket_version": 1},
+        headers={"Idempotency-Key": "ai-active-ticket-run-02"},
+    )
+    assert second.status_code == 409
+    assert second.json()["error"]["code"] == "ai_run_in_progress"
+    assert second.headers["Retry-After"] == "3"
 
 
 def test_stale_ticket_version_cannot_publish_generation_result(ai_desk, monkeypatch):
@@ -398,8 +463,22 @@ def test_agentic_run_uses_only_bounded_read_only_tools_and_validated_sources(ai_
             ),
             ToolTurn("", (ToolCall("get_sla_status", {}),)),
             ToolTurn(
+                "",
+                (ToolCall("get_ticket_context", {}),),
+            ),
+            ToolTurn(
+                "",
+                (ToolCall("find_related_tickets", {}),),
+            ),
+            ToolTurn(
                 '{"answer":"Ask the customer to request a fresh recovery link.",'
-                '"insufficient_evidence":false,"cited_source_refs":["S1"]}',
+                '"insufficient_evidence":false,"cited_source_refs":["S1"],'
+                '"analysis":{"ticket_assessment":"Password reset link expired.",'
+                '"sla_assessment":"Within target.",'
+                '"related_ticket_assessment":"No comparable ticket.",'
+                '"potential_causes":["Expired token"],'
+                '"missing_information":["When was the link requested?"],'
+                '"recommended_actions":["Issue a new link"]}}',
                 (),
             ),
         ]
@@ -411,9 +490,20 @@ def test_agentic_run_uses_only_bounded_read_only_tools_and_validated_sources(ai_
     result = desk["clients"]["owner"].get(f"/api{desk['root']}/ai/runs/{run_id}")
     assert result.status_code == 200
     assert result.json()["status"] == "completed"
-    assert result.json()["tools_used"] == ["search_knowledge_base", "get_sla_status"]
+    assert result.json()["tools_used"] == [
+        "search_knowledge_base",
+        "get_sla_status",
+        "get_ticket_context",
+        "find_related_tickets",
+    ]
+    assert result.json()["agentic_analysis"]["potential_causes"] == ["Expired token"]
     assert result.json()["citations"][0]["article_id"] == desk["article"]["id"]
-    assert provider.messages[-1]["tool_name"] == "get_sla_status"
+    assert [message["tool_name"] for message in provider.messages if message["role"] == "tool"] == [
+        "search_knowledge_base",
+        "get_sla_status",
+        "get_ticket_context",
+        "find_related_tickets",
+    ]
     assert "staff investigation secret" not in str(provider.messages)
 
 

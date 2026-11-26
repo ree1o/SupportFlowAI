@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, type Organization } from "../api";
 import { ErrorText, message } from "../auth";
@@ -174,20 +174,72 @@ function ArticleEditor({
               <form className="knowledge-editor" onSubmit={(event) => { event.preventDefault(); void mutate("save"); }}>
                 <label>Title<input value={title} onChange={(event) => setTitle(event.target.value)} required maxLength={200} /></label>
                 <label>Instructions in Markdown<textarea value={content} onChange={(event) => setContent(event.target.value)} required maxLength={50000} rows={18} /></label>
+                <section className="knowledge-preview" aria-label="Markdown preview">
+                  <h3>Preview</h3>
+                  <MarkdownContent content={content} />
+                </section>
                 <div className="form-actions">
                   <button disabled={busy}>{busy ? "Saving…" : "Save new revision"}</button>
                   <button type="button" className="secondary" disabled={busy || (article.lifecycle === "published" && article.current_revision === article.published_revision)} onClick={() => void mutate("publish")}>{article.lifecycle === "published" ? "Publish current revision" : "Publish article"}</button>
                   {article.index_status === "failed" && <button type="button" className="secondary" disabled={busy} onClick={() => void mutate("reindex")}>Retry indexing</button>}
                   <button type="button" className="secondary" disabled={busy} onClick={() => void mutate("archive")}>Archive</button>
                 </div>
-                <p className="muted">Saving creates a versioned draft. The current published version remains visible until you publish the new revision.</p>
+                <p className="muted">Saving creates draft revision {article.current_revision + 1}. The currently published revision {article.published_revision ?? "does not exist"} remains available until you publish the new revision.</p>
               </form>
             ) : (
-              <article className="knowledge-content"><pre>{article.content}</pre></article>
+              <article className="knowledge-content"><MarkdownContent content={article.content} /></article>
             )}
           </section>
         </>
       )}
     </>
   );
+}
+
+function MarkdownContent({ content }: { content: string }) {
+  return (
+    <div className="markdown-content">
+      {content.split(/\r?\n/).map((line, index) => {
+        if (!line.trim()) return <Fragment key={index}><br /></Fragment>;
+        const heading = /^(#{1,3})\s+(.+)$/.exec(line);
+        if (heading) return <Heading key={index} level={heading[1].length}>{inlineMarkdown(heading[2])}</Heading>;
+        if (/^[-*]\s+/.test(line)) return <p className="markdown-list-item" key={index}>• {inlineMarkdown(line.replace(/^[-*]\s+/, ""))}</p>;
+        if (/^>\s?/.test(line)) return <blockquote key={index}>{inlineMarkdown(line.replace(/^>\s?/, ""))}</blockquote>;
+        return <p key={index}>{inlineMarkdown(line)}</p>;
+      })}
+    </div>
+  );
+}
+
+function Heading({ level, children }: { level: number; children: ReactNode }) {
+  if (level === 1) return <h1>{children}</h1>;
+  if (level === 2) return <h2>{children}</h2>;
+  return <h3>{children}</h3>;
+}
+
+function inlineMarkdown(text: string) {
+  const pattern = /(\[[^\]]+\]\([^)]+\)|\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
+  const nodes: ReactNode[] = [];
+  let cursor = 0;
+  for (const match of text.matchAll(pattern)) {
+    const value = match[0];
+    const offset = match.index ?? 0;
+    if (offset > cursor) nodes.push(text.slice(cursor, offset));
+    const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(value);
+    if (link) {
+      let href: string | undefined;
+      try {
+        const parsed = new URL(link[2], window.location.origin);
+        if (parsed.protocol === "https:" || parsed.protocol === "http:") href = parsed.href;
+      } catch {
+        href = undefined;
+      }
+      nodes.push(href ? <a key={offset} href={href} target="_blank" rel="noreferrer">{link[1]}</a> : link[1]);
+    } else if (value.startsWith("**")) nodes.push(<strong key={offset}>{value.slice(2, -2)}</strong>);
+    else if (value.startsWith("`")) nodes.push(<code key={offset}>{value.slice(1, -1)}</code>);
+    else nodes.push(<em key={offset}>{value.slice(1, -1)}</em>);
+    cursor = offset + value.length;
+  }
+  if (cursor < text.length) nodes.push(text.slice(cursor));
+  return nodes;
 }

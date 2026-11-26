@@ -100,7 +100,19 @@ test("onboarding, protected routes, organization switching, renewal, and logout"
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/tickets$/);
   await page.goto("/status");
-  await expect(page.getByText("available", { exact: true })).toHaveCount(2);
+  await expect(page.getByRole("heading", { name: "System status" })).toBeVisible();
+  await expect(page.getByText("Core services operational")).toBeVisible();
+  for (const service of [
+    "Application API",
+    "PostgreSQL and migrations",
+    "Queue and rate limit store",
+    "Ticket and notification worker",
+    "AI and knowledge indexing worker",
+  ]) {
+    await expect(
+      page.locator(".health-component").filter({ hasText: service }).getByText("available", { exact: true }),
+    ).toBeVisible();
+  }
 });
 
 test("membership access and expired browser session", async ({

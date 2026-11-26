@@ -123,7 +123,9 @@ test("ticket Copilot shows grounded citations and inserts a human-reviewed draft
   queueNextRunForPolling = "failed";
   await page.getByRole("button", { name: "Summarize conversation" }).click();
   await page.clock.fastForward(2000);
-  await expect(page.getByRole("alert")).toContainText("Generation failed (generation_failed)");
+  await expect(page.getByRole("alert")).toHaveText(
+    "Generation did not complete. Check local model and worker status, then retry.",
+  );
   await page.clock.fastForward(20000);
   expect(terminalPolls).toBe(1);
   queueNextRunForPolling = "completed";

@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Request, Response
+from fastapi import APIRouter, Header, Request, Response
 
 from app.ai import service
 from app.ai.provider import OllamaProvider
@@ -9,7 +9,6 @@ from app.ai.schemas import AIRunCreate, AIRunView, AIStatusView
 from app.errors import AppError
 from app.identity.api import DB, Auth, WriteAuth
 from app.identity.service import organization_context
-from app.rate_limit import limited
 
 router = APIRouter(prefix="/api/organizations/{organization_id}/ai", tags=["AI"])
 
@@ -20,11 +19,40 @@ def model_status(organization_id: UUID, auth: Auth, db: DB, request: Request) ->
     organization_context(db, auth.user.id, organization_id)
     settings = request.app.state.settings
     status = OllamaProvider(settings).status()
+    quotas = [
+        request.app.state.rate_limiter.quota(
+            "ai-run-global", "global", settings.ai_global_hourly_limit
+        ),
+        request.app.state.rate_limiter.quota(
+            "ai-run-organization", str(organization_id), settings.ai_organization_hourly_limit
+        ),
+        request.app.state.rate_limiter.quota(
+            "ai-run-user-organization",
+            f"{auth.user.id}:{organization_id}",
+            settings.ai_user_organization_hourly_limit,
+        ),
+    ]
+    available_quotas = [item for item in quotas if item is not None]
+    remaining = (
+        min(item[0] for item in available_quotas) if len(available_quotas) == len(quotas) else None
+    )
+    resets_in = (
+        max(item[1] for item in available_quotas if item[0] == remaining)
+        if remaining is not None
+        else None
+    )
     return AIStatusView(
         enabled=settings.ai_enabled,
         state=status.state,
         model=status.model,
         digest=status.digest,
+        request_limit=min(
+            settings.ai_global_hourly_limit,
+            settings.ai_organization_hourly_limit,
+            settings.ai_user_organization_hourly_limit,
+        ),
+        requests_remaining=remaining,
+        limit_resets_in_seconds=resets_in,
     )
 
 
@@ -32,11 +60,6 @@ def model_status(organization_id: UUID, auth: Auth, db: DB, request: Request) ->
     "/tickets/{ticket_id}/runs",
     response_model=AIRunView,
     status_code=202,
-    dependencies=[
-        Depends(limited("ai-run-global", 120, 3600, identity_scope="global")),
-        Depends(limited("ai-run-organization", 30, 3600, identity_scope="organization")),
-        Depends(limited("ai-run", 6, 3600)),
-    ],
 )
 def create_run(
     organization_id: UUID,
@@ -61,6 +84,7 @@ def create_run(
         data,
         idempotency_key,
         request.app.state.settings,
+        request.app.state.rate_limiter,
     )
     response.headers["Location"] = f"/api/organizations/{organization_id}/ai/runs/{result.id}"
     response.headers["Retry-After"] = "2"

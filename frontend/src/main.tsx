@@ -178,7 +178,9 @@ function AccountForm({ register = false }: { register?: boolean }) {
 function Protected() {
   const { current, loading } = useAuth();
   if (loading) return <main aria-busy="true">Loading your workspace…</main>;
-  return current ? <Outlet /> : <Navigate to="/login" replace />;
+  if (!current) return <Navigate to="/login" replace />;
+  if (current.organizations.length === 0) return <Navigate to="/customer" replace />;
+  return <Outlet />;
 }
 
 function Workspace() {

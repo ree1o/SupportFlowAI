@@ -86,13 +86,16 @@ retrieval scores, not calibrated confidence probabilities.
 ## Bounded tool calling
 
 Tool calling uses a small custom Python orchestrator over Ollama's local `/api/chat` tool
-format. LangChain, LangGraph and MCP are deferred; two fixed read-only calls cover the
-demonstrated use case without another abstraction framework or runtime.
+format. LangChain, LangGraph and MCP are deferred; four fixed read-only calls cover the
+demonstrated use case without another abstraction framework or runtime. A run accepts at
+most one tool call per model turn, four distinct calls total, and a final response turn.
 
 | Tool | Typed input | Scope and output |
 | --- | --- | --- |
 | `search_knowledge_base` | One query string, 3-400 characters, no extra fields. | Up to four current published chunks in the run organization; sanitized title/excerpt, revision and source reference. |
 | `get_sla_status` | Empty object only. | Response/resolution deadline and current state for the run's already-authorized ticket. |
+| `get_ticket_context` | Empty object only. | Current status, priority, category, and active assignment for the authorized ticket. |
+| `find_related_tickets` | Empty object only. | A bounded list of same-organization visible tickets with status/category and similarity signal; no other customer's message bodies or contact details. |
 
 Tool arguments cannot choose an organization, ticket, article, SQL statement or endpoint.
 Each call rechecks the requester's active membership, ticket visibility and expected ticket
@@ -102,6 +105,19 @@ names are rejected, and total tool output is bounded. Errors return a safe rejec
 the model never receives shell, SQL, mutation, arbitrary HTTP or permission-management
 tools. The current API records successful tool names but not model arguments or hidden
 reasoning.
+
+Conversation summaries use a separate structured summary schema. They summarize only the
+authorized public conversation and do not require Knowledge Base retrieval, citations, or
+reply-style abstention. Internal staff notes remain excluded. Reply generation retains its
+separate published-source and citation checks.
+
+AI run creation is limited by `SUPPORTFLOW_AI_USER_ORGANIZATION_HOURLY_LIMIT` (30 by
+default), `SUPPORTFLOW_AI_ORGANIZATION_HOURLY_LIMIT` (30), and
+`SUPPORTFLOW_AI_GLOBAL_HOURLY_LIMIT` (120) requests per hour. Redis counters
+are reserved atomically after authorization, ticket-version, active-run, and idempotency
+checks. A duplicate idempotent request does not consume quota. Redis unavailability rejects
+new AI run creation safely with `503`, while ordinary helpdesk operations remain available.
+The UI displays the staff-account quota and the server-provided retry interval on rejection.
 
 ## Background reliability and retention
 
