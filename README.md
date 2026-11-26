@@ -19,6 +19,19 @@ SupportFlow AI brings customer conversations, team workflows, SLA tracking, and 
 
 > **AI, with human control:** Incident Radar uses explainable rules, while Related Tickets uses semantic similarity. Neither automatically diagnoses a root cause or sends AI-generated replies.
 
+## Product screenshots
+
+These screenshots show the current interface with disposable synthetic demo records. They contain no customer or production data.
+
+<p align="center">
+  <a href="docs/screenshots/ticket-queue.png"><img src="docs/screenshots/ticket-queue.png" width="49%" alt="SupportFlow staff ticket queue with search and filters"></a>
+  <a href="docs/screenshots/ticket-workspace.png"><img src="docs/screenshots/ticket-workspace.png" width="49%" alt="Ticket conversation, controls, related-ticket search, and Copilot panel"></a>
+</p>
+<p align="center">
+  <a href="docs/screenshots/incident-radar.png"><img src="docs/screenshots/incident-radar.png" width="49%" alt="Staff-reviewed Incident Radar workspace"></a>
+  <a href="docs/screenshots/mobile-ticket-workspace.png"><img src="docs/screenshots/mobile-ticket-workspace.png" width="24%" alt="Responsive mobile ticket workspace"></a>
+</p>
+
 ## Tech stack
 
 | Layer | Technologies |
@@ -29,6 +42,34 @@ SupportFlow AI brings customer conversations, team workflows, SLA tracking, and 
 | Background jobs | Celery, transactional outbox |
 | Semantic search | FastEmbed, local CPU embeddings |
 | Development & quality | Docker Compose, Mailpit, pytest, Playwright, GitHub Actions |
+
+## Architecture at a glance
+
+SupportFlow is a modular monolith: one FastAPI application contains explicit domain modules for identity, tickets, customers, SLAs, integrations, incidents, semantic retrieval, and AI assistance. Routers handle HTTP validation and response schemas; service functions own business rules and transaction boundaries; synchronous SQLAlchemy and Alembic manage PostgreSQL persistence.
+
+PostgreSQL is the source of truth, including `pgvector` embeddings. Explicit service authorization is reinforced by forced row-level security for tenant-owned data. Durable outbox records let Celery workers process notifications, indexing, SLA scans, and other background work through Redis without putting external calls inside business transactions. The optional generative model runs locally through Ollama; no hosted AI provider is configured or required.
+
+```mermaid
+flowchart LR
+    Staff[Staff and customer browsers] --> Web[React and TypeScript]
+    Web --> API[FastAPI modular monolith]
+    API --> DB[(PostgreSQL and pgvector)]
+    API --> Outbox[Transactional outbox]
+    Outbox --> Queue[Celery and Redis]
+    Queue --> DB
+    Queue -. optional local inference .-> Ollama[Ollama on developer host]
+```
+
+The diagram is intentionally simplified. See [system architecture](docs/architecture.md) and [security hardening](docs/security-hardening.md) for tenant boundaries, runtime roles, and failure handling.
+
+## AI capabilities and limits
+
+- **Semantic retrieval** uses local multilingual embeddings to rank same-organization tickets. Similarity is a discovery signal, not evidence of a shared root cause.
+- **Incident Radar** is a separate deterministic detector. It proposes groups with stored evidence for staff review; it does not auto-confirm or claim root-cause certainty.
+- **The optional Copilot** retrieves published Knowledge Base chunks, returns source citations, summarizes conversations, and can invoke a small allowlist of bounded read-only tools. Staff decide whether to edit and send each suggested reply.
+- **Privacy by default:** embedding and generation inference are local. Internal notes and unrelated customer data are excluded from public reply context. Ollama is optional, and helpdesk workflows remain available when it is offline.
+
+The current Copilot did **not** meet the proposed grounding and abstention targets in the held-out synthetic evaluation. The evaluation is small and synthetic, not a production-quality claim; generated content must be reviewed. Read [the measured evaluation and limitations](docs/ai-evaluation.md).
 
 ## Run locally
 
