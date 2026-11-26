@@ -535,12 +535,22 @@ successfully.
 
 - The normal Compose stack is running with AI enabled and Ollama available. PostgreSQL stays
   mapped to host port `15432`; no volume or user data was reset or deleted.
-- Current verification changes remain local and uncommitted pending final diff review. The
-  latest verified application commit remains `f7871016e8250d0e034d44ed61b53baf19eccc26`.
-  GitHub Actions were updated from Node 20-era action majors to current Node 24-compatible
-  majors (`checkout@v7`, `setup-python@v7`, `setup-node@v7`). Local verification passed,
-  but the current working changes had not yet been pushed at the time of this verification
-  record and therefore had no new remote Actions result. The prior pushed commit's CI
-  passed. The repository's standing Git instructions govern the verified commit and push.
+- At the time the local verification was first recorded, changes had not yet been committed
+  or pushed. The CI workflow was updated from Node 20-era action majors to current Node
+  24-compatible majors (`checkout@v7`, `setup-python@v7`, `setup-node@v7`). Publication
+  results are recorded below.
 - No further M10 implementation work is pending. M10 remains experimental in answer quality;
   no production-readiness claim is made. Do not begin another milestone without approval.
+
+### Publication verification — 2026-11-26
+
+- Commit `e62a007486af01b0c0823aebec17dad159c1fe1a`
+  (`feat(ai): improve grounded assistance and release diagnostics`) was pushed to the
+  existing `origin/main` with a normal fast-forward push. Local and remote `main` tips
+  matched after the push.
+- GitHub Actions run
+  [45821032643](https://github.com/ree1o/SupportFlowAI/actions/runs/45821032643) completed
+  successfully for that commit: backend, frontend, and compose-smoke all passed.
+- After CI completed, the Compose API, database, Redis, both workers, frontend, and Mailpit
+  remained running; API liveness and readiness returned HTTP 200 and component status was
+  operational.
