@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { clickStaffNavigation } from "./navigation";
 
 const password = `Customer-${randomUUID()}-secure`;
 
@@ -14,7 +15,7 @@ async function registerStaff(page: Page) {
   await page.getByLabel("Workspace address", { exact: true }).fill(`portal-${id}`);
   await page.getByRole("button", { name: "Create account & workspace" }).click();
   await expect(page).toHaveURL(/\/app\/tickets$/);
-  await page.getByRole("link", { name: "Contacts", exact: true }).click();
+  await clickStaffNavigation(page, "Contacts");
   await page.getByRole("button", { name: "New contact", exact: true }).click();
   const customerEmail = `portal-customer-${id}@example.com`;
   await page.getByLabel("Contact name", { exact: true }).fill(`Portal Customer ${id}`);
@@ -81,7 +82,7 @@ test("customer invitation, portal ticket, staff-only note, and two-way public co
   const created = await (await createResponse).json() as { id: string };
   await expect(customer.getByText("My order payment timed out.", { exact: true })).toBeVisible();
 
-  await page.getByRole("link", { name: "Tickets", exact: true }).click();
+  await clickStaffNavigation(page, "Tickets");
   await page.getByRole("link").filter({ hasText: title }).click();
   await page.getByRole("button", { name: "Internal note", exact: true }).click();
   await page.getByLabel("Internal note body", { exact: true }).fill("STAFF ONLY: payment provider trace.");

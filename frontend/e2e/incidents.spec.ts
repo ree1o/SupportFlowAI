@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { clickStaffNavigation } from "./navigation";
 
 async function postJson(page: Page, path: string, body: unknown) {
   const csrf = await page.request.get("/api/auth/csrf");
@@ -47,7 +48,7 @@ test("staff reviews deterministic evidence and confirms a manual incident", asyn
     expect(response.status()).toBe(201);
   }
 
-  await page.getByRole("link", { name: "Incident Radar", exact: true }).click();
+  await clickStaffNavigation(page, "Incident Radar");
   await page.getByRole("button", { name: "Run detection", exact: true }).click();
   await expect(page.getByText("Detection run queued.", { exact: true })).toBeVisible();
   await expect.poll(async () => {

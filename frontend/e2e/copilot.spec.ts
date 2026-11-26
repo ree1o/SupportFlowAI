@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { clickStaffNavigation } from "./navigation";
 
 test("ticket Copilot shows grounded citations and inserts a human-reviewed draft", async ({ page }) => {
   const id = randomUUID().slice(0, 8);
@@ -98,12 +99,12 @@ test("ticket Copilot shows grounded citations and inserts a human-reviewed draft
   await page.getByRole("button", { name: "Create account & workspace" }).click();
   await expect(page).toHaveURL(/\/app\/tickets$/);
 
-  await page.getByRole("link", { name: "Contacts", exact: true }).click();
+  await clickStaffNavigation(page, "Contacts");
   await page.getByRole("button", { name: "New contact", exact: true }).click();
   await page.getByLabel("Contact name", { exact: true }).fill("Copilot Customer");
   await page.getByLabel("Contact email", { exact: true }).fill(`customer-${id}@example.com`);
   await page.getByRole("button", { name: "Save contact" }).click();
-  await page.getByRole("link", { name: "Tickets", exact: true }).click();
+  await clickStaffNavigation(page, "Tickets");
   await page.getByRole("link", { name: "New ticket", exact: true }).click();
   await page.getByRole("button", { name: /Copilot Customer/ }).click();
   await page.getByLabel("Ticket title", { exact: true }).fill("Cannot sign in after password reset");

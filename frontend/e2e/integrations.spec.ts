@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { clickStaffNavigation } from "./navigation";
 
 async function setup(page: Page) {
   const id = randomUUID().slice(0, 8);
@@ -11,7 +12,7 @@ async function setup(page: Page) {
   await page.getByLabel("Workspace address").fill(`integration-${id}`);
   await page.getByRole("button", { name: "Create account & workspace" }).click();
   await expect(page).toHaveURL(/\/app\/tickets$/);
-  await page.getByRole("link", { name: "Contacts", exact: true }).click();
+  await clickStaffNavigation(page, "Contacts");
   await page.getByRole("button", { name: "New contact", exact: true }).click();
   await page.getByLabel("Contact name", { exact: true }).fill("Mapped Integration Customer");
   await page.getByLabel("Contact email", { exact: true }).fill(`mapped-${id}@example.com`);
@@ -22,7 +23,7 @@ async function setup(page: Page) {
 
 test("owner creates a contact-bound source and receives one idempotent ticket", async ({ page }) => {
   const id = await setup(page);
-  await page.getByRole("link", { name: "Integrations", exact: true }).click();
+  await clickStaffNavigation(page, "Integrations");
   await page.getByLabel("Source name").fill("Payment service");
   await page.getByLabel("Authorized contact").selectOption({
     label: `Mapped Integration Customer · mapped-${id}@example.com`,
@@ -76,9 +77,9 @@ test("owner creates a contact-bound source and receives one idempotent ticket", 
   expect(sent.firstStatus).toBe(201);
   expect(sent.duplicateStatus).toBe(201);
 
-  await page.getByRole("link", { name: "Tickets", exact: true }).click();
+  await clickStaffNavigation(page, "Tickets");
   await expect(page.getByRole("link", { name: "Payment provider returned an error" })).toBeVisible();
-  await page.getByRole("link", { name: "Integrations", exact: true }).click();
+  await clickStaffNavigation(page, "Integrations");
   await expect(page.getByText("Processed").first()).toBeVisible();
   await expect(page.getByText("Payment service").first()).toBeVisible();
 });

@@ -71,82 +71,51 @@ export function TicketQueue({ org }: { org: Organization }) {
         key={params.toString()}
         onSubmit={filter}
       >
-        <label className="search-field">
-          Search tickets
-          <input
-            name="q"
-            defaultValue={params.get("q") ?? ""}
-            placeholder="Title, requester name or email"
-            maxLength={200}
-          />
-        </label>
-        <label>
-          Status
-          <select name="status" defaultValue={params.get("status") ?? ""}>
-            <option value="">All statuses</option>
-            {statuses.map((value) => (
-              <option key={value}>{value}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Priority
-          <select name="priority" defaultValue={params.get("priority") ?? ""}>
-            <option value="">All priorities</option>
-            {priorities.map((value) => (
-              <option key={value}>{value}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          SLA status
-          <select name="sla_status" defaultValue={params.get("sla_status") ?? ""}>
-            <option value="">All SLA states</option>
-            <option value="overdue">Overdue</option>
-            <option value="approaching">Due within one hour</option>
-            <option value="none">No SLA snapshot</option>
-          </select>
-        </label>
-        <label>
-          Category
-          <select
-            name="category_id"
-            defaultValue={params.get("category_id") ?? ""}
-          >
-            <option value="">All categories</option>
-            {categories.data?.map((value) => (
-              <option key={value.id} value={value.id}>
-                {value.name}
-                {!value.is_active ? " (inactive)" : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Assignment
-          <select name="assignment" defaultValue={assignment}>
-            <option value="">All staff</option>
-            <option value="unassigned">Unassigned</option>
-            {members.data?.map((value) => (
-              <option key={value.id} value={value.id}>
-                {value.full_name}
-                {!value.is_active ? " (disabled)" : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Sort tickets
-          <select
-            name="sort"
-            defaultValue={params.get("sort") ?? "created_desc"}
-          >
-            <option value="created_desc">Newest first</option>
-            <option value="created_asc">Oldest first</option>
-            <option value="updated_desc">Recently updated</option>
-            <option value="priority_desc">Highest priority</option>
-          </select>
-        </label>
+        <div className="queue-primary-filters">
+          <label className="search-field">
+            Search tickets
+            <input name="q" defaultValue={params.get("q") ?? ""} placeholder="Subject, requester, or email" maxLength={200} />
+          </label>
+          <label>Status
+            <select name="status" defaultValue={params.get("status") ?? ""}>
+              <option value="">All statuses</option>
+              {statuses.map((value) => <option key={value}>{value}</option>)}
+            </select>
+          </label>
+          <label>Priority
+            <select name="priority" defaultValue={params.get("priority") ?? ""}>
+              <option value="">All priorities</option>
+              {priorities.map((value) => <option key={value}>{value}</option>)}
+            </select>
+          </label>
+        </div>
+        <details className="advanced-filters" open={Boolean(params.get("sla_status") || params.get("category_id") || assignment || params.get("sort"))}>
+          <summary><span>More filters</span><span className="filter-summary">SLA, category, assignment and sort</span></summary>
+          <div className="advanced-filter-grid">
+            <label>SLA status
+              <select name="sla_status" defaultValue={params.get("sla_status") ?? ""}>
+                <option value="">All SLA states</option><option value="overdue">Overdue</option><option value="approaching">Due within one hour</option><option value="none">No SLA snapshot</option>
+              </select>
+            </label>
+            <label>Category
+              <select name="category_id" defaultValue={params.get("category_id") ?? ""}>
+                <option value="">All categories</option>
+                {categories.data?.map((value) => <option key={value.id} value={value.id}>{value.name}{!value.is_active ? " (inactive)" : ""}</option>)}
+              </select>
+            </label>
+            <label>Assignment
+              <select name="assignment" defaultValue={assignment}>
+                <option value="">All staff</option><option value="unassigned">Unassigned</option>
+                {members.data?.map((value) => <option key={value.id} value={value.id}>{value.full_name}{!value.is_active ? " (disabled)" : ""}</option>)}
+              </select>
+            </label>
+            <label>Sort tickets
+              <select name="sort" defaultValue={params.get("sort") ?? "created_desc"}>
+                <option value="created_desc">Newest first</option><option value="created_asc">Oldest first</option><option value="updated_desc">Recently updated</option><option value="priority_desc">Highest priority</option>
+              </select>
+            </label>
+          </div>
+        </details>
         <div className="filter-actions">
           <button>Apply filters</button>
           <button
@@ -161,8 +130,8 @@ export function TicketQueue({ org }: { org: Organization }) {
       <ErrorText text={remote.error || categories.error || members.error} />
       <section className="panel ticket-queue">
         <div className="section-heading">
-          <h2>All tickets</h2>
-          <span className="muted">{remote.data?.total ?? 0} results</span>
+          <div><p className="eyebrow">Queue</p><h2>All tickets</h2></div>
+          <span className="result-count" role="status">{remote.data?.total ?? 0} results</span>
         </div>
         {remote.loading ? (
           <p aria-busy="true">Loading tickets…</p>
@@ -555,15 +524,6 @@ export function TicketDetail({ org }: { org: Organization }) {
               )}
             />
           </section>
-          <CopilotPanel
-            org={org}
-            ticketId={ticket.id}
-            ticketVersion={ticket.version}
-            onInsert={(draft) => {
-              setMode("reply");
-              setReply(draft);
-            }}
-          />
           <section
             className={`panel composer ${mode === "note" ? "note-composer" : ""}`}
           >
@@ -854,6 +814,15 @@ export function TicketDetail({ org }: { org: Organization }) {
             )}
             <p className="related-disclaimer">Similarity is a search signal, not confirmation of a shared cause.</p>
           </section>
+          <CopilotPanel
+            org={org}
+            ticketId={ticket.id}
+            ticketVersion={ticket.version}
+            onInsert={(draft) => {
+              setMode("reply");
+              setReply(draft);
+            }}
+          />
         </aside>
       </div>
     </>

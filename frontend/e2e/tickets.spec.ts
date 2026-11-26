@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { clickNewWorkspace, clickStaffNavigation } from "./navigation";
 
 async function desk(page: Page) {
   const id = randomUUID().slice(0, 8);
@@ -22,7 +23,7 @@ async function desk(page: Page) {
   await expect(
     page.getByRole("heading", { name: "Ticket queue", exact: true }),
   ).toBeVisible();
-  await page.getByRole("link", { name: "Contacts", exact: true }).click();
+  await clickStaffNavigation(page, "Contacts");
   await page.getByRole("button", { name: "New contact", exact: true }).click();
   await page.getByLabel("Contact name", { exact: true }).fill("Jamie Customer");
   await page
@@ -36,7 +37,7 @@ async function desk(page: Page) {
 }
 
 async function ticket(page: Page, title: string) {
-  await page.getByRole("link", { name: "Tickets", exact: true }).click();
+  await clickStaffNavigation(page, "Tickets");
   await page.getByRole("link", { name: "New ticket", exact: true }).click();
   await page.getByRole("button", { name: /Jamie Customer/ }).click();
   await page.getByLabel("Ticket title", { exact: true }).fill(title);
@@ -88,7 +89,7 @@ test("staff intake, assignment, distinct conversations, audit, filtering, and te
   page,
 }) => {
   await desk(page);
-  await page.getByRole("link", { name: "SLA & operations", exact: true }).click();
+  await clickStaffNavigation(page, "SLA & operations");
   await expect(page.getByRole("heading", { name: "SLA policy" })).toBeVisible();
   for (const priority of ["low", "normal", "high", "urgent"])
     for (const target of ["response", "resolution"])
@@ -96,8 +97,8 @@ test("staff intake, assignment, distinct conversations, audit, filtering, and te
   await page.getByRole("button", { name: "Create policy", exact: true }).click();
   await expect(page.getByRole("button", { name: "Save policy", exact: true })).toBeVisible();
   await expect(page.getByText("Currently overdue", { exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "Tickets", exact: true }).click();
-  await page.getByRole("link", { name: "Categories", exact: true }).click();
+  await clickStaffNavigation(page, "Tickets");
+  await clickStaffNavigation(page, "Categories");
   await page.getByLabel("Category name", { exact: true }).fill("Payments");
   await page
     .getByRole("button", { name: "Create category", exact: true })
@@ -201,7 +202,7 @@ test("staff intake, assignment, distinct conversations, audit, filtering, and te
     path: test.info().outputPath("ticket-detail.png"),
     fullPage: true,
   });
-  await page.getByRole("link", { name: "Tickets", exact: true }).click();
+  await clickStaffNavigation(page, "Tickets");
   await page.getByLabel("Search tickets", { exact: true }).fill("checkout");
   await page
     .getByRole("combobox", { name: "Priority", exact: true })
@@ -223,7 +224,7 @@ test("staff intake, assignment, distinct conversations, audit, filtering, and te
     0,
   );
   await expect(page.getByText("No tickets here yet")).toBeVisible();
-  await page.getByRole("button", { name: "+ New workspace" }).click();
+  await clickNewWorkspace(page);
   await page.getByLabel("Name", { exact: true }).fill("Isolated workspace");
   await page
     .getByLabel("Workspace address", { exact: true })
@@ -239,7 +240,7 @@ test("staff intake, assignment, distinct conversations, audit, filtering, and te
     `/api/organizations/${otherOrg}/tickets/${ticketId}`,
   );
   expect(hidden.status()).toBe(404);
-  await page.getByRole("link", { name: "Tickets", exact: true }).click();
+  await clickStaffNavigation(page, "Tickets");
   await expect(page.getByText("No tickets here yet")).toBeVisible();
   await page.getByLabel("Select organization").selectOption(org);
   await expect(page.locator(".ticket-row")).toHaveCount(1);

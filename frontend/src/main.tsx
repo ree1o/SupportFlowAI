@@ -19,7 +19,7 @@ import {
 } from "./api";
 import { Health } from "./Health";
 import { AuthProvider, useAuth, ErrorText, message } from "./auth";
-import { Sidebar } from "./Sidebar";
+import { Sidebar, WorkspaceHeader } from "./Sidebar";
 import { SupportApp } from "./support/SupportApp";
 import { CustomerAccount, CustomerInvitation, CustomerPortal, CustomerRecovery, CustomerVerify } from "./customer/Portal";
 import "./styles.css";
@@ -293,7 +293,9 @@ function Workspace() {
         onSelect={switchOrg}
         onCreate={() => setCreating((value) => !value)}
       />
-      <main className="workspace-main">
+      <div className="workspace-region">
+      {selected && <WorkspaceHeader organization={selected} />}
+      <main className="workspace-main workspace-settings-main">
         <div className="page-heading">
           <div>
             <p className="eyebrow">Organization settings</p>
@@ -522,6 +524,7 @@ function Workspace() {
           </button>
         </section>
       </main>
+      </div>
     </div>
   );
 }

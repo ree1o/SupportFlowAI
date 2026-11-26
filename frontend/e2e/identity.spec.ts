@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { clickNewWorkspace, clickSidebarAction, clickStaffNavigation } from "./navigation";
 
 const password = `Test-${randomUUID()}`;
 
@@ -24,7 +25,7 @@ async function register(page: Page, prefix: string) {
     .getByRole("button", { name: "Create account & workspace" })
     .click();
   await expect(page).toHaveURL(/\/app\/tickets$/);
-  await page.getByRole("link", { name: "Organization & team" }).click();
+  await clickStaffNavigation(page, "Organization & team");
   await expect(
     page.getByRole("heading", { name: account.name, exact: true }),
   ).toBeVisible();
@@ -41,7 +42,7 @@ test("onboarding, protected routes, organization switching, renewal, and logout"
     page.getByText(account.email, { exact: true }).first(),
   ).toBeVisible();
   const original = await page.getByLabel("Select organization").inputValue();
-  await page.getByRole("button", { name: "+ New workspace" }).click();
+  await clickNewWorkspace(page);
   const second = `second-${randomUUID().slice(0, 8)}`;
   await page.getByLabel("Name", { exact: true }).fill("Second workspace");
   await page.getByLabel("Workspace address", { exact: true }).fill(second);
@@ -86,7 +87,7 @@ test("onboarding, protected routes, organization switching, renewal, and logout"
         )?.value,
     )
     .not.toBe(before?.value);
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await clickSidebarAction(page, "Sign out");
   await expect(page).toHaveURL(/\/login$/);
   await page.getByLabel("Email", { exact: true }).fill(account.email);
   await page

@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { clickStaffNavigation } from "./navigation";
 
 test("staff create, publish and find a versioned knowledge article", async ({ page }) => {
   const id = randomUUID().slice(0, 8);
@@ -11,7 +12,7 @@ test("staff create, publish and find a versioned knowledge article", async ({ pa
   await page.getByLabel("Workspace address").fill("knowledge-" + id);
   await page.getByRole("button", { name: "Create account & workspace" }).click();
   await expect(page).toHaveURL(/\/app\/tickets$/);
-  await page.getByRole("link", { name: "Knowledge Base", exact: true }).click();
+  await clickStaffNavigation(page, "Knowledge Base");
   await page.getByRole("button", { name: "New article" }).click();
   await page.getByLabel("URL slug").fill("password-reset-" + id);
   await page.getByLabel("Article title").fill("Reset a forgotten password");

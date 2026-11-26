@@ -1,5 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
-import { Sidebar } from "../Sidebar";
+import { Sidebar, WorkspaceHeader } from "../Sidebar";
 import { useAuth } from "../auth";
 import { Contacts } from "./Contacts";
 import { Categories } from "./Categories";
@@ -17,7 +17,9 @@ export function SupportApp() {
   return (
     <div className="workspace-shell">
       <Sidebar />
-      <main className="workspace-main support-main" key={org?.id ?? "none"}>
+      <div className="workspace-region" key={org?.id ?? "none"}>
+      {org && <WorkspaceHeader organization={org} />}
+      <main className="workspace-main support-main">
         {org ? (
           <Routes>
             <Route path="tickets" element={<TicketQueue org={org} />} />
@@ -41,6 +43,7 @@ export function SupportApp() {
           </section>
         )}
       </main>
+      </div>
     </div>
   );
 }
